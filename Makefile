@@ -1,5 +1,5 @@
-ROS_MASTER_IP=127.0.0.1
-FORCE_BUILD=false
+ip_address=127.0.0.1
+force_build=false
 
 init:
 ifeq ($(FORCE_BUILD), true)
@@ -13,7 +13,7 @@ endif
 	docker network create ros_dev_external
 
 start:
-	ROS_MASTER_IP=$(ROS_MASTER_IP) docker-compose up -d --force-recreate
+	ROS_MASTER_IP=$(ip_address) docker-compose up -d --force-recreate
 
 shell:
 	docker-compose exec detectron2 bash
