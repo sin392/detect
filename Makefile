@@ -3,7 +3,7 @@ FORCE_BUILD=false
 
 init:
 ifeq ($(FORCE_BUILD), true)
-	docker build -f docker/Dockerfile \
+	docker build -f Dockerfile.base \
 		-t cuda_detectron2_ros:11.1.1-cudnn8-devel-ubuntu20.04 \
 		--build-arg USER_ID=${UID} .
 else
