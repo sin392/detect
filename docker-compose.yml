@@ -1,0 +1,44 @@
+version: "2.3"
+services:
+  detectron2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        USER_ID: ${USER_ID:-1000}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities:
+                - gpu
+    shm_size: "10gb"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      # - $HOME/.Xauthority:/root/.Xauthority
+      # - XAUTHORITY=/root/.Xauthority
+      - ./src:/home/appuser/workspace/src
+      - ./catkin_src:/home/appuser/workspace/catkin_ws/src
+      - ./datasets:/home/appuser/workspace/datasets
+      - ./output:/home/appuser/workspace/output
+    environment:
+      - DISPLAY=host.docker.internal${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - ROS_IP=detectron2
+      - ROS_MASTER_URI=http://${ROS_MASTER_IP:-127.0.0.1}:11311
+    networks:
+      - ros_dev_external
+    privileged: true
+    tty: true
+    # Uncomment with proper source to access webcam from docker
+    # devices:
+    #   - /dev/video0:/dev/video0
+    working_dir: /home/appuser/workspace
+    command: bash -c "cd catkin_ws && catkin build && /bin/bash"
+
+networks:
+  ros_dev_external:
+    external: true
