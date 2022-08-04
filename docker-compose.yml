@@ -23,6 +23,7 @@ services:
       - ./src:/home/appuser/workspace/src
       - ./catkin_src:/home/appuser/workspace/catkin_ws/src
       - ./datasets:/home/appuser/workspace/datasets
+      - ./configs:/home/appuser/workspace/configs
       - ./output:/home/appuser/workspace/output
     environment:
       - DISPLAY=host.docker.internal${DISPLAY}
