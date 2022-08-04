@@ -19,6 +19,8 @@ RUN export ROS_PACKAGE_PATH=\${ROS_PACKAGE_PATH}:${ROS_WS}
 RUN echo "export ROS_PACKAGE_PATH=\${ROS_PACKAGE_PATH}:${ROS_WS}" >> ${HOME}/.bashrc
 RUN echo "source ${ROS_WS}/devel/setup.bash" >> ${HOME}/.bashrc
 
+RUN echo "export PYTHONPATH=${WS}/src:\${PYTHONPATH}" >> ${HOME}/.bashrc
+
 WORKDIR ${WS}
 
 # alias
