@@ -11,6 +11,7 @@ else
 endif
 
 	docker network create ros_dev_external
+	docker-compose build
 
 start:
 	ROS_MASTER_IP=$(ip_address) docker-compose up -d --force-recreate
