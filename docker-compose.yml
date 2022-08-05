@@ -23,7 +23,8 @@ services:
       # - $HOME/.Xauthority:/root/.Xauthority
       # - XAUTHORITY=/root/.Xauthority
       - ./src:/home/${USER}/workspace/src
-      - ./catkin_src:/home/${USER}/workspace/catkin_ws/src
+      - ./catkin_ws/src:/home/${USER}/workspace/catkin_ws/src
+      - ./catkin_ws/output:/home/${USER}/workspace/catkin_ws/output
       - ./datasets:/home/${USER}/workspace/datasets
       - ./configs:/home/${USER}/workspace/configs
       - ./output:/home/${USER}/workspace/output
