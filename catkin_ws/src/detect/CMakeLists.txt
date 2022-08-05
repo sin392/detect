@@ -10,6 +10,7 @@ project(detect)
 find_package(catkin REQUIRED COMPONENTS
   message_generation
   rospy
+  geometry_msgs
   sensor_msgs
   std_msgs
 )
@@ -50,6 +51,7 @@ find_package(catkin REQUIRED COMPONENTS
 # Generate messages in the 'msg' folder
 add_message_files(
   FILES
+  BoundingBox.msg
   Instance.msg
   Instances.msg
   InstancesStamped.msg
@@ -108,7 +110,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES detect
-  CATKIN_DEPENDS message_runtime rospy sensor_msgs std_msgs
+  CATKIN_DEPENDS message_runtime rospy sensor_msgs std_msgs geometry_msgs
 #  DEPENDS system_lib
 )
 
