@@ -1,5 +1,5 @@
 # base image is creted by "make init"
-FROM cuda_detectron2_ros:11.1.1-cudnn8-devel-ubuntu20.04
+FROM sin392/cuda_detectron2_ros:latest
 
 ARG BUILD_USER
 ENV USER ${BUILD_USER}

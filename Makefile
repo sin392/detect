@@ -4,10 +4,10 @@ force_build=false
 init:
 ifeq ($(force_build), true)
 	docker build -f Dockerfile.base \
-		-t cuda_detectron2_ros:11.1.1-cudnn8-devel-ubuntu20.04 \
+		-t sin392/cuda_detectron2_ros:latest \
 		--build-arg USER_ID=${UID} .
 else
-	docker pull cuda_detectron2_ros:11.1.1-cudnn8-devel-ubuntu20.04
+	docker pull sin392/cuda_detectron2_ros:latest
 endif
 
 	cp .devcontainer/devcontainer_example.json .devcontainer/devcontainer.json
