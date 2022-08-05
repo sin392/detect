@@ -22,6 +22,9 @@ RUN rm -R -f /home/appuser
 
 USER ${USER}
 # add non-root operations
+WORKDIR ${WS}
+# WARN: ユーザを切り替えるとdetectron2消えちゃってるかもしれないので再インストール
+RUN pip install --user -e detectron2_repo
 RUN mkdir -p ${ROS_WORKSPACE}/src
 RUN echo "set +e" >> ${HOME}/.bashrc
 WORKDIR ${ROS_WORKSPACE}
