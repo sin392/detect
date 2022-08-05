@@ -37,6 +37,6 @@ RUN echo "export PYTHONPATH=${WS}/src:\${PYTHONPATH}" >> ${HOME}/.bashrc
 WORKDIR ${WS}
 
 # alias
-RUN echo 'alias ccp="catkin_create_package"' >> ${HOME}/.bashrc
+RUN echo 'alias ccp="catkin_create_pkg"' >> ${HOME}/.bashrc
 RUN echo 'alias cb="catkin build"' >> ${HOME}/.bashrc
 RUN echo 'alias rl="roslaunch"' >> ${HOME}/.bashrc
