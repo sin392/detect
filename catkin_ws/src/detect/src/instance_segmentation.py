@@ -20,6 +20,7 @@ def callback(msg: Image, callback_args: Union[list, tuple]):
     bridge = CvBridge()
 
     try:
+        rospy.loginfo(msg.header)
         img = bridge.imgmsg_to_cv2(msg)
         v = Visualizer(
             img[:, :, ::-1],
@@ -52,7 +53,8 @@ def callback(msg: Image, callback_args: Union[list, tuple]):
                 )
             )
 
-        header = Header(stamp=rospy.get_rostime())
+        header = Header(stamp=rospy.get_rostime(),
+                        frame_id=msg.header.frame_id)
         instances_publisher.publish(
             InstancesStamped(
                 header=header,
