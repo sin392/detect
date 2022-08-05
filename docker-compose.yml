@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        USER_ID: ${USER_ID:-1000}
+        BUILD_USER: ${USER}
     image: detectron2
     container_name: detectron2
     deploy:
@@ -22,11 +22,11 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       # - $HOME/.Xauthority:/root/.Xauthority
       # - XAUTHORITY=/root/.Xauthority
-      - ./src:/home/appuser/workspace/src
-      - ./catkin_src:/home/appuser/workspace/catkin_ws/src
-      - ./datasets:/home/appuser/workspace/datasets
-      - ./configs:/home/appuser/workspace/configs
-      - ./output:/home/appuser/workspace/output
+      - ./src:/home/${USER}/workspace/src
+      - ./catkin_src:/home/${USER}/workspace/catkin_ws/src
+      - ./datasets:/home/${USER}/workspace/datasets
+      - ./configs:/home/${USER}/workspace/configs
+      - ./output:/home/${USER}/workspace/output
     environment:
       - DISPLAY=host.docker.internal${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
@@ -39,8 +39,8 @@ services:
     # Uncomment with proper source to access webcam from docker
     # devices:
     #   - /dev/video0:/dev/video0
-    working_dir: /home/appuser/workspace
-    command: bash -c "cd catkin_ws && catkin build && /bin/bash"
+    working_dir: /home/${USER}/workspace
+    command: bash -c "cd catkin_ws && catkin clean -b && catkin build && /bin/bash"
 
 networks:
   ros_dev_external:
