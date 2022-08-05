@@ -1,3 +1,5 @@
+import os
+
 import cv2
 from detectron2.config import get_cfg
 from detectron2.data import DatasetCatalog, MetadataCatalog
@@ -6,7 +8,7 @@ from detectron2.engine import DefaultPredictor
 from detectron2.utils.visualizer import ColorMode, Visualizer
 
 
-class OutputsDict(dict):
+class outputsDict(dict):
     def parse(self):
         instances = self['instances']
         mask_array = instances.pred_masks.to("cpu").numpy()
@@ -28,7 +30,7 @@ class Predictor:
         self.predictor = DefaultPredictor(self.cfg)
 
     def predict(self, img):
-        outputs = OutputsDict(self.predictor(img))
+        outputs = outputsDict(self.predictor(img))
         return outputs
 
 
@@ -42,11 +44,12 @@ if __name__ == "__main__":
     parser.add_argument("--device", "-d", default="cuda:0")
     args = parser.parse_args()
 
-    p = Path("./")
-    dataset_path = p.joinpath("datasets")
+    user_dir = os.path.expanduser("~")
+    p = Path(f"{user_dir}/catkin_ws/src/detect")
+    dataset_path = p.joinpath("resources/datasets")
 
     cfg = get_cfg()
-    cfg.merge_from_file(str(p.joinpath("configs", "config.yaml")))
+    cfg.merge_from_file(str(p.joinpath("resources/configs/config.yaml")))
     cfg.MODEL.DEVICE = args.device
     cfg.MODEL.WEIGHTS = args.weight or f"{cfg.OUTPUT_DIR}/2022_08_04_07_40/model_final.pth"
 
@@ -64,6 +67,8 @@ if __name__ == "__main__":
 
     predictor = Predictor(cfg)
 
+    save_dir = str(p.joinpath("outputs", "images"))
+    os.makedirs(save_dir)
     for d in dataset_dicts:
         img = cv2.imread(d["file_name"])
         start = time()
@@ -81,7 +86,7 @@ if __name__ == "__main__":
         out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
         # cv2.imshow("result", out.get_image()[:, :, ::-1])
         fname = Path(d["file_name"]).stem + ".png"
-        save_path = str(p.joinpath("output", "images", fname))
+        save_path = f"{save_dir}/{fname}"
         # print(outputs["instances"])
         print(f"{end - start:.4f}", save_path)
         # print(outputs['instances'].pred_boxes.get_centers())

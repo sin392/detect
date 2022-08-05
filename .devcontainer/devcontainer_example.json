@@ -17,7 +17,7 @@
 
 	// The optional 'workspaceFolder' property is the path VS Code should open by default when
 	// connected. This is typically a file mount in .devcontainer/docker-compose.yml
-	// "workspaceFolder": "/home/${USER}/workspace",
+	// "workspaceFolder": "/home/${USER}/catkin_ws/src/detect",
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
@@ -60,11 +60,11 @@
 		},
 		"python.autoComplete.extraPaths": [
 			"/opt/ros/noetic/lib/python3/dist-packages",
-			// "/home/<username>/workspace/catkin_ws/devel/lib/python3/dist-packages"
+			// "/home/<username>/catkin_ws/devel/lib/python3/dist-packages"
 		],
 		"python.analysis.extraPaths": [
 			"/opt/ros/noetic/lib/python3/dist-packages",
-			// "/home/<username>/workspace/catkin_ws/devel/lib/python3/dist-packages/"
+			// "/home/<username>/catkin_ws/devel/lib/python3/dist-packages/"
 		]
 	}
 }

@@ -3,7 +3,6 @@ from os.path import expanduser
 from pathlib import Path
 from typing import Union
 
-import cv2
 import rospy
 from cv_bridge import CvBridge
 from detect.msg import BoundingBox, Instance, InstancesStamped
@@ -73,12 +72,12 @@ if __name__ == "__main__":
     rospy.init_node("instance_segmentaion_node", log_level=rospy.INFO)
 
     user_dir = expanduser("~")
-    p = Path(f"{user_dir}/workspace")
+    p = Path(f"{user_dir}/catkin_ws/src/detect")
 
     config_path = rospy.get_param(
-        "config", str(p.joinpath("configs/config.yaml")))
+        "config", str(p.joinpath("resources/configs/config.yaml")))
     weight_path = rospy.get_param("weight", str(
-        p.joinpath("output/2022_08_04_07_40/model_final.pth")))
+        p.joinpath("outputs/2022_08_04_07_40/model_final.pth")))
     device = rospy.get_param("device", "cuda:0")
     image_topics = rospy.get_param(
         "image_topic", "/body_camera/color/image_raw")

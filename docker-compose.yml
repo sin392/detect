@@ -19,15 +19,21 @@ services:
       memlock: -1
       stack: 67108864
     volumes:
+      # directories
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       # - $HOME/.Xauthority:/root/.Xauthority
       # - XAUTHORITY=/root/.Xauthority
-      - ./scripts:/home/${USER}/workspace/scripts
-      - ./catkin_ws/src:/home/${USER}/workspace/catkin_ws/src
-      - ./catkin_ws/output:/home/${USER}/workspace/catkin_ws/output
-      - ./datasets:/home/${USER}/workspace/datasets
-      - ./configs:/home/${USER}/workspace/configs
-      - ./output:/home/${USER}/workspace/output
+      # - ./src:/home/${USER}/catkin_ws/src/detect/src
+      # - ./msg:/home/${USER}/catkin_ws/src/detect/msg
+      # - ./scripts:/home/${USER}/catkin_ws/src/detect/scripts
+      # - ./resources/datasets:/home/${USER}/catkin_ws/src/detect/resources
+      # - ./outputs:/home/${USER}/catkin_ws/src/detect/outputs
+      # - ./.git:/home/${USER}/catkin_ws/src/detect/.git
+      # # files
+      # - ./.gitignore:/home/${USER}/catkin_ws/src/detect/.gitignore
+      # - ./CMakeLists.txt:/home/${USER}/catkin_ws/src/detect/CMakeLists.txt
+      # - ./package.xml:/home/${USER}/catkin_ws/src/detect/package.xml
+      - ./:/home/${USER}/catkin_ws/src/detect
     environment:
       - DISPLAY=host.docker.internal${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
@@ -40,8 +46,8 @@ services:
     # Uncomment with proper source to access webcam from docker
     # devices:
     #   - /dev/video0:/dev/video0
-    working_dir: /home/${USER}/workspace
-    command: bash -c "cd catkin_ws && catkin clean -by && catkin build && /bin/bash"
+    working_dir: /home/${USER}/catkin_ws/src/detect
+    command: bash -c "catkin build && /bin/bash"
 
 networks:
   ros_dev_external:

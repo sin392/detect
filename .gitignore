@@ -1,5 +1,7 @@
 __pycache__
-datasets/*/**
-output/**
+detectron_repo
+resources/datasets/*/**
+outputs/**
+
 
 .devcontainer/devcontainer.json
