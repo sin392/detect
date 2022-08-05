@@ -1,3 +1,5 @@
 __pycache__
 datasets/*/**
 output/**
+
+.devcontainer/devcontainer.json

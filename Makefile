@@ -10,6 +10,7 @@ else
 	docker pull cuda_detectron2_ros:11.1.1-cudnn8-devel-ubuntu20.04
 endif
 
+	cp .devcontainer/devcontainer_example.json .devcontainer/devcontainer.json
 	docker network create ros_dev_external
 	docker-compose build
 

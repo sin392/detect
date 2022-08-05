@@ -9,6 +9,9 @@ ENV ROS_WORKSPACE ${WS}/catkin_ws
 ENV PATH=${HOME}/.local/bin:${PATH}
 
 USER root
+# WORKDIRしないと/home/appuserが削除されずに残る
+# base imageで/home/appuser以下をWORKDIR指定しているのが問題？
+WORKDIR /home
 # add root operations
 RUN usermod -l ${USER} appuser
 RUN usermod -d /home/${USER} -m ${USER}
@@ -16,7 +19,6 @@ RUN usermod -c ${USER} ${USER}
 RUN sed -i s/appuser/${USER}/ ${HOME}/.bashrc
 RUN sed -i s/appuser/${USER}/ ${HOME}/.zshrc
 RUN rm -R -f /home/appuser
-
 
 USER ${USER}
 # add non-root operations
