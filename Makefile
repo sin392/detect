@@ -2,7 +2,7 @@ ip_address=127.0.0.1
 force_build=false
 
 init:
-ifeq ($(FORCE_BUILD), true)
+ifeq ($(force_build), true)
 	docker build -f Dockerfile.base \
 		-t cuda_detectron2_ros:11.1.1-cudnn8-devel-ubuntu20.04 \
 		--build-arg USER_ID=${UID} .
