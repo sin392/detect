@@ -32,7 +32,7 @@ RUN /bin/bash -c "source /opt/ros/noetic/setup.bash; catkin build"
 RUN echo "export ROS_PACKAGE_PATH=\${ROS_PACKAGE_PATH}:\${ROS_WORKSPACE}" >> ${HOME}/.bashrc
 RUN echo "source \${ROS_WORKSPACE}/devel/setup.bash" >> ${HOME}/.bashrc
 RUN echo "export ROS_IP=\$(hostname -i)" >> ${HOME}/.bashrc
-RUN echo "export PYTHONPATH=${WS}/src:\${PYTHONPATH}" >> ${HOME}/.bashrc
+RUN echo "export PYTHONPATH=${WS}/scripts:\${PYTHONPATH}" >> ${HOME}/.bashrc
 RUN echo "export PYTHONPATH=\${ROS_WORKSPACE}/devel/lib/python3/dist-packages:\${PYTHONPATH}" >> ${HOME}/.bashrc
 
 WORKDIR ${WS}

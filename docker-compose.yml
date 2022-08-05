@@ -22,7 +22,7 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       # - $HOME/.Xauthority:/root/.Xauthority
       # - XAUTHORITY=/root/.Xauthority
-      - ./src:/home/${USER}/workspace/src
+      - ./scripts:/home/${USER}/workspace/scripts
       - ./catkin_ws/src:/home/${USER}/workspace/catkin_ws/src
       - ./catkin_ws/output:/home/${USER}/workspace/catkin_ws/output
       - ./datasets:/home/${USER}/workspace/datasets
