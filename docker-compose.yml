@@ -37,7 +37,7 @@ services:
     environment:
       - DISPLAY=host.docker.internal${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
-      - ROS_IP=detectron2
+      # - ROS_IP=detectron2
       - ROS_MASTER_URI=http://${ROS_MASTER_IP:-127.0.0.1}:11311
     networks:
       - ros_dev_external
