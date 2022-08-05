@@ -40,7 +40,7 @@ services:
     # devices:
     #   - /dev/video0:/dev/video0
     working_dir: /home/${USER}/workspace
-    command: bash -c "cd catkin_ws && catkin clean -b && catkin build && /bin/bash"
+    command: bash -c "cd catkin_ws && catkin clean -by && catkin build && /bin/bash"
 
 networks:
   ros_dev_external:
