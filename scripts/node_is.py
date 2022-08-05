@@ -9,9 +9,10 @@ from detect.msg import BoundingBox, Instance, InstancesStamped
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import ColorMode, Visualizer
 from geometry_msgs.msg import Point
-from inference import Predictor
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
+
+from inference import Predictor
 
 
 def callback(msg: Image, callback_args: Union[list, tuple]):
@@ -53,7 +54,7 @@ def callback(msg: Image, callback_args: Union[list, tuple]):
                 )
             )
 
-        header = Header(stamp=rospy.get_rostime(),
+        header = Header(stamp=msg.header.stamp,
                         frame_id=msg.header.frame_id)
         instances_publisher.publish(
             InstancesStamped(
