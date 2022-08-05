@@ -8,14 +8,18 @@ from detectron2.utils.visualizer import ColorMode, Visualizer
 
 class OutputsDict(dict):
     def parse(self):
-        mask_array = self['instances'].pred_masks.to("cpu").numpy()
+        instances = self['instances']
+        mask_array = instances.pred_masks.to("cpu").numpy()
         num_instances = mask_array.shape[0]
-        scores = self['instances'].scores.to("cpu").numpy()
-        labels = self['instances'].pred_classes.to("cpu").numpy()
-        bboxes = self['instances'].pred_boxes.to("cpu").tensor.numpy()
+        scores = instances.scores.to("cpu").numpy()
+        labels = instances.pred_classes.to("cpu").numpy()
+        bboxes = instances.pred_boxes.to("cpu").tensor.numpy()
+        centers = instances.pred_boxes.get_centers().to("cpu").numpy()
+        areas = instances.pred_boxes.area().to("cpu").numpy()
 
         return {"num_instances": num_instances, "mask_array": mask_array,
-                "scores": scores, "labels": labels, "bboxes": bboxes}
+                "scores": scores, "labels": labels, "bboxes": bboxes,
+                "centers": centers, "areas": areas}
 
 
 class Predictor:
