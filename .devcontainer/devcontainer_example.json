@@ -42,7 +42,8 @@
 		"ms-python.vscode-pylance",
 		"ms-python.python",
 		"ms-tools",
-		"ms-toolsai.jupyter-renderers"
+		"ms-toolsai.jupyter-renderers",
+		"ms-iot.vscode-ros"
 	],
 
 	"settings": {
