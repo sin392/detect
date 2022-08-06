@@ -47,7 +47,7 @@ def callback(msg: Image, callback_args: Union[list, tuple]):
                     label=str(parsed_outputs["labels"][i]),
                     score=parsed_outputs["scores"][i],
                     bbox=BoundingBox(*parsed_outputs["bboxes"][i]),
-                    center=Point(*parsed_outputs["centers"][i], None),
+                    center=parsed_outputs["centers"][i],
                     area=parsed_outputs["areas"][i],
                     mask=bridge.cv2_to_imgmsg(
                         parsed_outputs["mask_array"][i].astype("int8"))

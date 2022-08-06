@@ -58,6 +58,7 @@ if __name__ == "__main__":
     # for image_topic in image_topics.split():
     image_topic = image_topics
 
+    # alignedとcolorで時間ずれてそうなので注意
     depth_topic = image_topic.replace("color", "aligned_depth_to_color")
     publisher = rospy.Publisher(
         image_topic + "/filtered", Image, queue_size=10)
