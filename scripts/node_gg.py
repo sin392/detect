@@ -11,12 +11,16 @@ import numpy as np
 import rospy
 from cv_bridge import CvBridge
 from detect.msg import DetectedObject, DetectedObjectsStamped, InstancesStamped
-from geometry_msgs.msg import Point, PointStamped
+from geometry_msgs.msg import (Point, PointStamped, Pose, PoseStamped,
+                               Quaternion)
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import CameraInfo, Image
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 from std_msgs.msg import Header
 from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformListener
+from tf.transformations import quaternion_from_matrix
 
 from utils.grasp import generate_candidates_list
 from utils.visualize import draw_candidates_and_boxes
@@ -40,7 +44,22 @@ def project_to_3d(cam_info, u, v, depth, frame_id, stamp, distance_margin=0):
     return object_point
 
 
-def transform(tf_buffer: Buffer, point: PointStamped, target_frame: str, trans=None) -> PointStamped:
+def get_orientation(u, v, depth, mask):
+    pca = PCA(n_components=3)
+    ss = StandardScaler()
+    # ここの値あってるか要検証...
+    pts = [(u, v, depth[y, x]) for y, x in zip(*np.where(mask == 1))]
+    pca.fit(ss.fit_transform(pts))
+    n, t, b = pca.components_
+    rmat_44 = np.eye(4)
+    rmat_33 = np.dstack([n, t, b])[0]
+    rmat_44[:3, :3] = rmat_33
+    # 4x4回転行列しか受け入れない罠
+    q = quaternion_from_matrix(rmat_44)
+    return Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+
+
+def transform_point(tf_buffer: Buffer, point: PointStamped, target_frame: str, trans=None) -> PointStamped:
     if not trans:
         trans = tf_buffer.lookup_transform(
             target_frame, point.header.frame_id, point.header.stamp)
@@ -54,7 +73,7 @@ def callback(img_msg: Image, depth_msg: Image,
              callback_args: Union[list, tuple]):
     tf_buffer: Buffer = callback_args[0]
     cam_info = callback_args[1]
-    monomask_publisher: rospy.Publisher = callback_args[2]
+    # monomask_publisher: rospy.Publisher = callback_args[2]
     cndsimg_publisher: rospy.Publisher = callback_args[3]
     objects_publisher: rospy.Publisher = callback_args[4]
     bridge = CvBridge()
@@ -84,7 +103,7 @@ def callback(img_msg: Image, depth_msg: Image,
         detected_objects_msg.header.stamp = instances_msg.header.stamp
         trans = tf_buffer.lookup_transform(
             "world", depth_msg.header.frame_id, depth_msg.header.stamp)
-        for i in range(instances_msg.num_instances):
+        for i in range(len(candidates_list)):
             center = centers[i]
             # TODO: get radius in meter | projectしたものの距離をとるべきか
             # radius = radiuses[i]
@@ -99,38 +118,47 @@ def callback(img_msg: Image, depth_msg: Image,
                 np.array([p2_3d.point.x, p2_3d.point.y, p2_3d.point.z])
             ) / 2
             height = radius / 2
-            center_3d = project_to_3d(cam_info, int(center[0]), int(center[1]), depth,
+            u, v = int(center[0]), int(center[1])
+            center_3d = project_to_3d(cam_info, u, v, depth,
                                       depth_msg.header.frame_id, depth_msg.header.stamp,
                                       # height分ずらす
                                       distance_margin=height)
-
-            rospy.loginfo(radius)
+            center_orientation = get_orientation(u, v, depth, masks[i])
 
             detected_objects_msg.objects.append(
                 DetectedObject(
-                    p1=transform(tf_buffer, p1_3d, "world", trans),
-                    p2=transform(tf_buffer, p2_3d, "world", trans),
-                    center=transform(tf_buffer, center_3d, "world", trans),
-                    radius=radius, height=height)
-            )
+                    radius=radius,
+                    height=height,
+                    p1=transform_point(tf_buffer, p1_3d, "world", trans),
+                    p2=transform_point(tf_buffer, p2_3d, "world", trans),
+                    center=PoseStamped(
+                        header=Header(frame_id="world",
+                                      stamp=depth_msg.header.stamp),
+                        pose=Pose(
+                            # position is Point (not PointStamped)
+                            position=transform_point(
+                                tf_buffer, center_3d, "world", trans).point,
+                            orientation=center_orientation
+                        )
+                    )
+                ))
 
         objects_publisher.publish(detected_objects_msg)
 
-        res_img = np.where(indexed_img > 0, 255, 0)[
-            :, :, np.newaxis].astype("uint8")
-        res_img_msg = bridge.cv2_to_imgmsg(res_img, "mono8")
+        # res_img = np.where(indexed_img > 0, 255, 0)[
+        #     :, :, np.newaxis].astype("uint8")
+        # res_img_msg = bridge.cv2_to_imgmsg(res_img, "mono8")
 
         res_img2 = img.copy()
         res_img2 = draw_candidates_and_boxes(
             res_img2, candidates_list, rotated_boxes, target_indexes=target_indexes, gray=True, copy=True)
-        rospy.loginfo(f"{candidates_list}")
         res_img2_msg = bridge.cv2_to_imgmsg(res_img2, "rgb8")
 
         # outputs info publish
-        header = Header(stamp=rospy.get_rostime(),
-                        frame_id=img_msg.header.frame_id)
-        res_img_msg.header = header
-        monomask_publisher.publish(res_img_msg)
+        # header = Header(stamp=rospy.get_rostime(),
+        #                 frame_id=img_msg.header.frame_id)
+        # res_img_msg.header = header
+        # monomask_publisher.publish(res_img_msg)
         cndsimg_publisher.publish(res_img2_msg)
 
     except Exception as err:
@@ -139,7 +167,7 @@ def callback(img_msg: Image, depth_msg: Image,
 
 if __name__ == "__main__":
     warnings.simplefilter("ignore")
-    rospy.init_node("grasp_candidates_node", log_level=rospy.INFO)
+    rospy.init_node("grasp_candidates_node", log_level=rospy.ERROR)
 
     user_dir = expanduser("~")
     p = Path(f"{user_dir}/catkin_ws/src/detect")
@@ -170,7 +198,7 @@ if __name__ == "__main__":
     monomask_publisher = rospy.Publisher(
         "/mono_mask", Image, queue_size=10)
     cndsimg_publisher = rospy.Publisher(
-        "/condidates_img", Image, queue_size=10)
+        "/candidates_img", Image, queue_size=10)
     objects_publisher = rospy.Publisher(
         "/detected_objects", DetectedObjectsStamped, queue_size=10)
     img_subscriber = mf.Subscriber(image_topic, Image)

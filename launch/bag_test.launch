@@ -1,5 +1,6 @@
 <launch>
     <arg name="fps" default="10" />
+    <arg name="delay" default="10" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot.bag" />
     <arg name="image_topic" default="/body_camera/color/image_raw" />
     <arg name="depth_topic" default="/body_camera/aligned_depth_to_color/image_raw" />
@@ -8,21 +9,24 @@
 
 
     <!-- for realsense-viewer bags -->
-    <remap from="/device_0/sensor_1/Color_0/image/data" to="$(arg image_topic)" />
+    <!-- <remap from="/device_0/sensor_1/Color_0/image/data" to="$(arg image_topic)" />
     <remap from="/device_0/sensor_1/Color_0/info/camera_info" to="$(arg image_info_topic)" />
+    <remap from="/device_0/sensor_0/Depth_0/image/data" to="$(arg depth_topic)" />
+    <remap from="/device_0/sensor_0/Depth_0/info/camera_info" to="$(arg depth_info_topic)" /> -->
     <!-- <remap from="/device_0/sensor_0/Depth_0/depth/data" to="/body_camera/depth/image_raw" /> -->
     <!-- <remap from="/device_0/sensor_0/Depth_0/info/camera_info" to="/body_camera/depth/camera_info" /> -->
-    <remap from="/device_0/sensor_0/Depth_0/image/data" to="$(arg depth_topic)" />
-    <remap from="/device_0/sensor_0/Depth_0/info/camera_info" to="$(arg depth_info_topic)" />
 
     <param name="use_sim_time" value="true" />
     <param name="fps" value="$(arg fps)" />
-    <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
+
+
     <!-- <node name="raw_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw" /> -->
     <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/aligned_depth_to_color/image_raw" />
     <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw/seg" />
-    <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="/condidates_img" />
+    <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="/candidates_img" />
+
 
     <node name="instance_segmentation" pkg="detect" type="node_is.py" />
-    <node name="generate_grasp" pkg="detect" type="node_gg.py" />
+    <node name="generate_grasp" pkg="detect" type="node_gg.py" output="screen"/>
+    <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
 </launch>
