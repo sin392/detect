@@ -55,6 +55,9 @@ add_message_files(
   Instance.msg
   Instances.msg
   InstancesStamped.msg
+  DetectedObject.msg
+  DetectedObjects.msg
+  DetectedObjectsStamped.msg
 )
 
 ## Generate services in the 'srv' folder
