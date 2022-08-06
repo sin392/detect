@@ -1,6 +1,5 @@
 <launch>
     <arg name="fps" default="10" />
-    <arg name="delay" default="10" />
     <arg name="device" default="cuda:0" />
     <arg name="use_bag" default="true" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot.bag" />
