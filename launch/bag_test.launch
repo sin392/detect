@@ -1,6 +1,7 @@
 <launch>
     <arg name="fps" default="10" />
     <arg name="delay" default="10" />
+    <arg name="device" default="cuda:0" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot.bag" />
     <arg name="image_topic" default="/body_camera/color/image_raw" />
     <arg name="depth_topic" default="/body_camera/aligned_depth_to_color/image_raw" />
@@ -18,7 +19,7 @@
 
     <param name="use_sim_time" value="true" />
     <param name="fps" value="$(arg fps)" />
-
+    <param name="device" value="$(arg device)" />
 
     <!-- <node name="raw_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw" /> -->
     <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/aligned_depth_to_color/image_raw" />
