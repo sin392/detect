@@ -79,6 +79,7 @@ def callback(img_msg: Image, depth_msg: Image,
     bridge = CvBridge()
 
     try:
+        rospy.loginfo("callback")
         img = bridge.imgmsg_to_cv2(img_msg)
         depth = bridge.imgmsg_to_cv2(depth_msg)
         masks = np.array([bridge.imgmsg_to_cv2(x.mask)
@@ -92,10 +93,11 @@ def callback(img_msg: Image, depth_msg: Image,
             indexed_img[mask == 1] = i + 1
 
         # centersどちら使うべきか
+        rospy.loginfo("candidates")
         candidates_list, contours, rotated_boxes, radiuses, centers = \
-            generate_candidates_list(indexed_img, 20, 'min')
+            generate_candidates_list(indexed_img, 20, 3, 'min')
         # choice specific candidate
-
+        rospy.loginfo("detect")
         detected_objects_msg = DetectedObjectsStamped()
         detected_objects_msg.header.frame_id = "world"
         detected_objects_msg.header.stamp = instances_msg.header.stamp
