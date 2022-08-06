@@ -2,6 +2,7 @@
     <arg name="fps" default="10" />
     <arg name="delay" default="10" />
     <arg name="device" default="cuda:0" />
+    <arg name="use_bag" default="true" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot.bag" />
     <arg name="image_topic" default="/body_camera/color/image_raw" />
     <arg name="depth_topic" default="/body_camera/aligned_depth_to_color/image_raw" />
@@ -26,7 +27,9 @@
     <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw/seg" />
     <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="/candidates_img" />
 
-    <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
+    <group if="$(arg use_bag)">
+        <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
+    </group>
 
     <node name="instance_segmentation" pkg="detect" type="node_is.py" />
     <node name="generate_grasp" pkg="detect" type="node_gg.py" output="screen"/>
