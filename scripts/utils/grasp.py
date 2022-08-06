@@ -26,7 +26,7 @@ def generate_candidates(center, bbox, mask, unit_angle, func):
         candidates.append((p1, p2))
 
 
-def generate_candidates_list(indexed_img, unit_angle=15, func='min'):
+def generate_candidates_list(indexed_img, unit_angle=15, margin=3, func='min'):
     cos, sin = np.cos(np.radians(unit_angle)), np.sin(np.radians(unit_angle))
     rmat = np.array([[cos, -sin], [sin, cos]])
     candidates_list = []  # インスタンスごとの把持候補領域を格納
@@ -37,9 +37,10 @@ def generate_candidates_list(indexed_img, unit_angle=15, func='min'):
     for label in range(1, len(np.unique(indexed_img))):
         # 各インスタンスの重心とbboxの算出
         each_mask = np.where(indexed_img == label, 255, 0).astype('uint8')
-        contours.extend(cv2.findContours(
-            each_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0])
-        contour = max(contours, key=lambda x: cv2.contourArea(x))
+        sub_contours = cv2.findContours(
+            each_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
+        contour = max(sub_contours, key=lambda x: cv2.contourArea(x))
+        contours.extend(sub_contours)
         # NOTE: 重心算出もっと簡潔な方法ありそう
         mu = cv2.moments(contour)
         center = np.array(
@@ -51,7 +52,7 @@ def generate_candidates_list(indexed_img, unit_angle=15, func='min'):
         # box is 左上, 右上, 右下, 左下
         radius = func(np.linalg.norm(box[0]-box[1]),
                       np.linalg.norm(box[1]-box[2])) / 2
-        radius += 1  # margin
+        radius += margin  # margin
         radiuses.append(radius)
         v = np.array([0, -1])*radius  # 単位ベクトル x 半径
         candidates = []

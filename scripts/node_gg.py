@@ -95,55 +95,68 @@ def callback(img_msg: Image, depth_msg: Image,
         candidates_list, contours, rotated_boxes, radiuses, centers = \
             generate_candidates_list(indexed_img, 20, 'min')
         # choice specific candidate
-        target_indexes = [randint(0, len(candidates)-1)
-                          for candidates in candidates_list]
 
         detected_objects_msg = DetectedObjectsStamped()
         detected_objects_msg.header.frame_id = "world"
         detected_objects_msg.header.stamp = instances_msg.header.stamp
-        trans = tf_buffer.lookup_transform(
-            "world", depth_msg.header.frame_id, depth_msg.header.stamp)
+        # trans = tf_buffer.lookup_transform(
+        #     "world", depth_msg.header.frame_id, depth_msg.header.stamp)
+        rospy.loginfo(len(candidates_list))
+        target_indexes = []
         for i in range(len(candidates_list)):
+            candidates = candidates_list[i]
             center = centers[i]
-            # TODO: get radius in meter | projectしたものの距離をとるべきか
+            u, v = int(center[1]), int(center[0])
             # radius = radiuses[i]
-            p1, p2 = candidates_list[i][target_indexes[i]]
 
-            p1_3d = project_to_3d(cam_info, int(p1[0]), int(p2[1]), depth,
+
+            # filter candidates, is x,y? or h,w?
+            candidates = [(p1, p2) for p1, p2 in candidates 
+                            if min(depth[int(p1[1])][int(p1[0])], depth[int(p2[1])][int(p2[0])]) >= depth[u, v]]
+            rospy.loginfo(f"{len(candidates_list[i])} {len(candidates)}")
+            if len(candidates) == 0:
+                rospy.loginfo("skip")
+                continue
+            candidates_list[i] = candidates
+            target_index = randint(0, len(candidates)-1) if len(candidates) != 0 else 0
+            p1, p2 = candidates[target_index]
+            target_indexes.append(target_index)
+
+            p1_3d = project_to_3d(cam_info, int(p1[1]), int(p1[0]), depth,
                                   depth_msg.header.frame_id, depth_msg.header.stamp)
-            p2_3d = project_to_3d(cam_info, int(p2[0]), int(p2[1]), depth,
+            p2_3d = project_to_3d(cam_info, int(p2[1]), int(p2[0]), depth,
                                   depth_msg.header.frame_id, depth_msg.header.stamp)
             radius = np.linalg.norm(
                 np.array([p1_3d.point.x, p1_3d.point.y, p1_3d.point.z]) -
                 np.array([p2_3d.point.x, p2_3d.point.y, p2_3d.point.z])
             ) / 2
             height = radius / 2
-            u, v = int(center[0]), int(center[1])
             center_3d = project_to_3d(cam_info, u, v, depth,
                                       depth_msg.header.frame_id, depth_msg.header.stamp,
                                       # height分ずらす
                                       distance_margin=height)
             center_orientation = get_orientation(u, v, depth, masks[i])
 
-            detected_objects_msg.objects.append(
-                DetectedObject(
-                    radius=radius,
-                    height=height,
-                    p1=transform_point(tf_buffer, p1_3d, "world", trans),
-                    p2=transform_point(tf_buffer, p2_3d, "world", trans),
-                    center=PoseStamped(
-                        header=Header(frame_id="world",
-                                      stamp=depth_msg.header.stamp),
-                        pose=Pose(
-                            # position is Point (not PointStamped)
-                            position=transform_point(
-                                tf_buffer, center_3d, "world", trans).point,
-                            orientation=center_orientation
-                        )
-                    )
-                ))
 
-        objects_publisher.publish(detected_objects_msg)
+        #     detected_objects_msg.objects.append(
+        #         DetectedObject(
+        #             radius=radius,
+        #             height=height,
+        #             p1=transform_point(tf_buffer, p1_3d, "world", trans),
+        #             p2=transform_point(tf_buffer, p2_3d, "world", trans),
+        #             center=PoseStamped(
+        #                 header=Header(frame_id="world",
+        #                               stamp=depth_msg.header.stamp),
+        #                 pose=Pose(
+        #                     # position is Point (not PointStamped)
+        #                     position=transform_point(
+        #                         tf_buffer, center_3d, "world", trans).point,
+        #                     orientation=center_orientation
+        #                 )
+        #             )
+        #         ))
+
+        # objects_publisher.publish(detected_objects_msg)
 
         # res_img = np.where(indexed_img > 0, 255, 0)[
         #     :, :, np.newaxis].astype("uint8")
@@ -167,7 +180,7 @@ def callback(img_msg: Image, depth_msg: Image,
 
 if __name__ == "__main__":
     warnings.simplefilter("ignore")
-    rospy.init_node("grasp_candidates_node", log_level=rospy.ERROR)
+    rospy.init_node("grasp_candidates_node", log_level=rospy.INFO)
 
     user_dir = expanduser("~")
     p = Path(f"{user_dir}/catkin_ws/src/detect")
@@ -208,7 +221,7 @@ if __name__ == "__main__":
     subscribers = [img_subscriber, depth_subscriber, instances_subscriber]
 
     tf_buffer = Buffer()
-    tf_lisner = TransformListener(tf_buffer)
+    # tf_lisner = TransformListener(tf_buffer)
     cam_info = rospy.wait_for_message(
         info_topic, CameraInfo, timeout=None)
     ts = mf.ApproximateTimeSynchronizer(subscribers, 10, delay)

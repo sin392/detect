@@ -26,8 +26,8 @@
     <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw/seg" />
     <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="/candidates_img" />
 
+    <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
 
     <node name="instance_segmentation" pkg="detect" type="node_is.py" />
     <node name="generate_grasp" pkg="detect" type="node_gg.py" output="screen"/>
-    <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
 </launch>
