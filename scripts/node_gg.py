@@ -23,6 +23,7 @@ from tf2_ros import Buffer, TransformListener
 from tf.transformations import quaternion_from_matrix
 
 from utils.grasp import generate_candidates_list
+from utils.image import IndexedMask
 from utils.visualize import draw_candidates_and_boxes
 
 
@@ -82,15 +83,12 @@ def callback(img_msg: Image, depth_msg: Image,
         rospy.loginfo("callback")
         img = bridge.imgmsg_to_cv2(img_msg)
         depth = bridge.imgmsg_to_cv2(depth_msg)
+        # TODO: 物体の深度順にソートできてる？
         masks = np.array([bridge.imgmsg_to_cv2(x.mask)
                          for x in instances_msg.instances])
+        indexed_img = IndexedMask(masks)
         # centers = np.array([x.center
         #                     for x in instances_msg.instances])
-        # create indexed image
-        indexed_img = np.zeros_like(masks[0])  # (h,w), 0 is bg
-        for i, mask in enumerate(masks):
-            # TODO: 物体の深度順にソートしたうえで結合したい
-            indexed_img[mask == 1] = i + 1
 
         # centersどちら使うべきか
         rospy.loginfo("candidates")
