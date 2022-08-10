@@ -42,6 +42,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--weight", "-w")
     parser.add_argument("--device", "-d", default="cuda:0")
+    parser.add_argument("--save", action='store_false')
     args = parser.parse_args()
 
     user_dir = os.path.expanduser("~")
@@ -49,9 +50,10 @@ if __name__ == "__main__":
     dataset_path = p.joinpath("resources/datasets")
 
     cfg = get_cfg()
-    cfg.merge_from_file(str(p.joinpath("resources/configs/config.yaml")))
+    cfg.merge_from_file(p.joinpath("resources/configs/config.yaml").as_posix())
     cfg.MODEL.DEVICE = args.device
-    cfg.MODEL.WEIGHTS = args.weight or f"{cfg.OUTPUT_DIR}/2022_08_04_07_40/model_final.pth"
+    cfg.MODEL.WEIGHTS = args.weight or p.joinpath(
+        "outputs/2022_08_04_07_40/model_final.pth").as_posix()
 
     dataset_name = "cabbage_val"
     register_coco_instances(dataset_name,
@@ -67,8 +69,8 @@ if __name__ == "__main__":
 
     predictor = Predictor(cfg)
 
-    save_dir = str(p.joinpath("outputs", "images"))
-    os.makedirs(save_dir)
+    save_dir = p.joinpath("outputs/images").as_posix()
+    os.makedirs(save_dir, exist_ok=True)
     for d in dataset_dicts:
         img = cv2.imread(d["file_name"])
         start = time()
@@ -86,11 +88,9 @@ if __name__ == "__main__":
         out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
         # cv2.imshow("result", out.get_image()[:, :, ::-1])
         fname = Path(d["file_name"]).stem + ".png"
-        save_path = f"{save_dir}/{fname}"
-        # print(outputs["instances"])
-        print(f"{end - start:.4f}", save_path)
-        # print(outputs['instances'].pred_boxes.get_centers())
-        # print(outputs['instances'].pred_boxes.area())
-        cv2.imwrite(
-            save_path,
-            out.get_image()[:, :, ::-1])
+        print(f"{end - start:.4f}", fname)
+
+        if args.save:
+            cv2.imwrite(
+                f"{save_dir}/{fname}",
+                out.get_image()[:, :, ::-1])
