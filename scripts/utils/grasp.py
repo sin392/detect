@@ -37,10 +37,10 @@ def generate_candidates_list(indexed_img, unit_angle=15, margin=3, func='min'):
     for label in range(1, len(np.unique(indexed_img))):
         # 各インスタンスの重心とbboxの算出
         each_mask = np.where(indexed_img == label, 255, 0).astype('uint8')
-        sub_contours = cv2.findContours(
-            each_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]
+        sub_contours, _ = cv2.findContours(
+            each_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contour = max(sub_contours, key=lambda x: cv2.contourArea(x))
-        contours.extend(sub_contours)
+        contours.append(sub_contours)
         # NOTE: 重心算出もっと簡潔な方法ありそう
         mu = cv2.moments(contour)
         center = np.array(
