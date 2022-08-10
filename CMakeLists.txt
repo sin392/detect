@@ -52,6 +52,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   FILES
   BoundingBox.msg
+  RotatedBoundingBox.msg
   Instance.msg
   Instances.msg
   InstancesStamped.msg
