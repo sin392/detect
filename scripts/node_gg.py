@@ -163,8 +163,8 @@ def callback(img_msg: Image, depth_msg: Image,
         # res_img_msg = bridge.cv2_to_imgmsg(res_img, "mono8")
 
         res_img2 = img.copy()
-        res_img2 = draw_candidates_and_boxes(
-            res_img2, candidates_list, rotated_boxes, target_indexes=target_indexes, gray=True, copy=True)
+        draw_candidates_and_boxes(
+            res_img2, candidates_list, rotated_boxes, target_indexes=target_indexes, gray=True)
         res_img2_msg = bridge.cv2_to_imgmsg(res_img2, "rgb8")
 
         # outputs info publish
