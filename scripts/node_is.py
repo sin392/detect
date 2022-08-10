@@ -5,10 +5,9 @@ from typing import Union
 
 import rospy
 from cv_bridge import CvBridge
-from detect.msg import BoundingBox, Instance, InstancesStamped
+from detect.msg import Instance, InstancesStamped, RotatedBoundingBox
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import ColorMode, Visualizer
-from geometry_msgs.msg import Point
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
 
@@ -46,11 +45,11 @@ def callback(msg: Image, callback_args: Union[list, tuple]):
                 Instance(
                     label=str(parsed_outputs["labels"][i]),
                     score=parsed_outputs["scores"][i],
-                    bbox=BoundingBox(*parsed_outputs["bboxes"][i]),
+                    bbox=RotatedBoundingBox(*parsed_outputs["bboxes"][i]),
                     center=parsed_outputs["centers"][i],
                     area=parsed_outputs["areas"][i],
                     mask=bridge.cv2_to_imgmsg(
-                        parsed_outputs["mask_array"][i].astype("int8"))
+                        parsed_outputs["mask_array"][i])
                 )
             )
 

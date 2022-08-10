@@ -90,7 +90,7 @@ def callback(img_msg: Image, depth_msg: Image,
         # centers = np.array([x.center
         #                     for x in instances_msg.instances])
 
-        # centersどちら使うべきか
+        # bboxはすでに計算済みだが、rotated_bboxの計算と重複してる...
         rospy.loginfo("candidates")
         candidates_list, contours, rotated_boxes, radiuses, centers = \
             generate_candidates_list(indexed_img, 20, 3, 'min')
@@ -109,16 +109,16 @@ def callback(img_msg: Image, depth_msg: Image,
             u, v = int(center[1]), int(center[0])
             # radius = radiuses[i]
 
-
             # filter candidates, is x,y? or h,w?
-            candidates = [(p1, p2) for p1, p2 in candidates 
-                            if min(depth[int(p1[1])][int(p1[0])], depth[int(p2[1])][int(p2[0])]) >= depth[u, v]]
+            candidates = [(p1, p2) for p1, p2 in candidates
+                          if min(depth[int(p1[1])][int(p1[0])], depth[int(p2[1])][int(p2[0])]) >= depth[u, v]]
             rospy.loginfo(f"{len(candidates_list[i])} {len(candidates)}")
             if len(candidates) == 0:
                 rospy.loginfo("skip")
                 continue
             candidates_list[i] = candidates
-            target_index = randint(0, len(candidates)-1) if len(candidates) != 0 else 0
+            target_index = randint(
+                0, len(candidates)-1) if len(candidates) != 0 else 0
             p1, p2 = candidates[target_index]
             target_indexes.append(target_index)
 
@@ -136,7 +136,6 @@ def callback(img_msg: Image, depth_msg: Image,
                                       # height分ずらす
                                       distance_margin=height)
             center_orientation = get_orientation(u, v, depth, masks[i])
-
 
         #     detected_objects_msg.objects.append(
         #         DetectedObject(
