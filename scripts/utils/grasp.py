@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 from xmlrpc.client import boolean
 
 import cv2
@@ -16,7 +16,7 @@ class ParallelGraspDetector:
         self.rmat = np.array([[cos, -sin], [sin, cos]])
 
     # radiusは外に出したい
-    def detect(self, center, bbox, contour, depth, filter=True):
+    def detect(self, center, bbox, contour, depth, filter=True) -> List[Tuple[int, int]]:
         # bbox is (xmin, ymin, xmax, ymax)
 
         radius = self.func(np.linalg.norm(bbox[2]-bbox[0]),
