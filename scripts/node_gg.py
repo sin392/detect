@@ -100,6 +100,7 @@ def callback(img_msg: Image, depth_msg: Image,
         #     "world", depth_msg.header.frame_id, depth_msg.header.stamp)
         assert instances_msg.num_instances == len(candidates_list)
         target_indexes = []
+        cnds_img = convert_rgb_to_3dgray(img)
         instances: List[Instance] = instances_msg.instances
         for i, instance in enumerate(instances):
             candidates = candidates_list[i]
@@ -135,6 +136,12 @@ def callback(img_msg: Image, depth_msg: Image,
                                       distance_margin=height)
             center_orientation = get_orientation(u, v, depth, masks[i])
 
+            bbox_msg = instance.bbox
+            cnds_img = draw_bbox(cnds_img, [
+                                 bbox_msg.upper_left, bbox_msg.upper_right, bbox_msg.lower_right, bbox_msg.lower_left])
+            cnds_img = draw_candidates(
+                cnds_img, candidates, target_index=target_index)
+
         #     detected_objects_msg.objects.append(
         #         DetectedObject(
         #             radius=radius,
@@ -157,6 +164,7 @@ def callback(img_msg: Image, depth_msg: Image,
 
         header = Header(stamp=rospy.get_rostime(),
                         frame_id=img_msg.header.frame_id)
+        # monomask_publisher.publish(monomask, header=header)
         # monomask = np.where(indexed_img > 0, 255, 0)[
         #     :, :, np.newaxis].astype("uint8")
         # monomask_publisher.publish(monomask, header=header)
