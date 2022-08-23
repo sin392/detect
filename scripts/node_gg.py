@@ -3,14 +3,15 @@ import warnings
 from os.path import expanduser
 from pathlib import Path
 from random import randint
-from typing import Union
+from typing import List, Union
 
 import cv2
 import message_filters as mf
 import numpy as np
 import rospy
 from cv_bridge import CvBridge
-from detect.msg import DetectedObject, DetectedObjectsStamped, InstancesStamped
+from detect.msg import (DetectedObject, DetectedObjectsStamped, Instance,
+                        InstancesStamped)
 from geometry_msgs.msg import (Point, PointStamped, Pose, PoseStamped,
                                Quaternion)
 from image_geometry import PinholeCameraModel
@@ -25,7 +26,6 @@ from tf.transformations import quaternion_from_matrix
 from entities.image import IndexedMask
 from ros.publisher import ImageMatPublisher
 from utils.grasp import generate_candidates_list
-from utils.image import IndexedMask
 from utils.visualize import draw_candidates_and_boxes
 
 
@@ -88,23 +88,22 @@ def callback(img_msg: Image, depth_msg: Image,
         masks = np.array([bridge.imgmsg_to_cv2(x.mask)
                          for x in instances_msg.instances])
         indexed_img = IndexedMask(masks)
-        # centers = np.array([x.center
-        #                     for x in instances_msg.instances])
 
         # bboxはすでに計算済みだが、rotated_bboxの計算と重複してる...
-        candidates_list, contours, rotated_boxes, radiuses, centers = \
+        candidates_list, _, rotated_boxes, radiuses, _ = \
             generate_candidates_list(indexed_img, 20, 3, 'min')
         # choice specific candidate
-        detected_objects_msg = DetectedObjectsStamped()
-        detected_objects_msg.header.frame_id = "world"
-        detected_objects_msg.header.stamp = instances_msg.header.stamp
+        # detected_objects_msg = DetectedObjectsStamped()
+        # detected_objects_msg.header.frame_id = "world"
+        # detected_objects_msg.header.stamp = instances_msg.header.stamp
         # trans = tf_buffer.lookup_transform(
         #     "world", depth_msg.header.frame_id, depth_msg.header.stamp)
-        rospy.loginfo(len(candidates_list))
+        assert instances_msg.num_instances == len(candidates_list)
         target_indexes = []
-        for i in range(len(candidates_list)):
+        instances: List[Instance] = instances_msg.instances
+        for i, instance in enumerate(instances):
             candidates = candidates_list[i]
-            center = centers[i]
+            center = instance.center
             u, v = int(center[1]), int(center[0])
             # radius = radiuses[i]
 
@@ -199,16 +198,17 @@ if __name__ == "__main__":
 
     # depth_topic = instances_topic.replace("color", "aligned_depth_to_color")
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
+    # Publishers
     monomask_publisher = ImageMatPublisher(
         "/mono_mask", queue_size=10)
     cndsimg_publisher = ImageMatPublisher(
         "/candidates_img", queue_size=10)
     objects_publisher = rospy.Publisher(
         "/detected_objects", DetectedObjectsStamped, queue_size=10)
+    # Subscribers
     img_subscriber = mf.Subscriber(image_topic, Image)
     depth_subscriber = mf.Subscriber(depth_topic, Image)
     instances_subscriber = mf.Subscriber(instances_topic, InstancesStamped)
-
     subscribers = [img_subscriber, depth_subscriber, instances_subscriber]
 
     tf_buffer = Buffer()
