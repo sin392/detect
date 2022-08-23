@@ -137,44 +137,46 @@ def callback(img_msg: Image, depth_msg: Image,
             target_indexes.append(target_index)
 
             # 3d projection
-            p1_3d = projector.pixel_to_3d(*p1[::-1], depth)
-            p2_3d = projector.pixel_to_3d(*p2[::-1], depth)
-
+            p1_3d_c = projector.pixel_to_3d(*p1[::-1], depth)
+            p2_3d_c = projector.pixel_to_3d(*p2[::-1], depth)
             radius = np.linalg.norm(
-                np.array([p1_3d.x, p1_3d.y, p1_3d.z]) -
-                np.array([p2_3d.x, p2_3d.y, p2_3d.z])
+                np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) -
+                np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])
             ) / 2
             height = radius / 2  # height分ずらす
-            center_3d = projector.pixel_to_3d(*center[::-1], depth, height)
-            center_orientation = pose_estimator.get_orientation(depth, mask)
+            c_3d_c = projector.pixel_to_3d(*center[::-1], depth, height)
+            # transform from camera to world
+            p1_3d_w = coords_transformer.transform_point(p1_3d_c)
+            p2_3d_w = coords_transformer.transform_point(p2_3d_c)
+            c_3d_w = coords_transformer.transform_point(c_3d_c)
+
+            c_orientation = pose_estimator.get_orientation(depth, mask)
 
             cnds_img = draw_bbox(cnds_img, bbox)
             cnds_img = draw_candidates(
                 cnds_img, candidates, target_index=target_index)
 
             objects_publisher.push_item(
-                radius=radius,
-                height=height,
-                p1=coords_transformer.transform_point(p1_3d),
-                p2=coords_transformer.transform_point(p2_3d),
-                center=PoseStamped(
+                radius,
+                height,
+                p1_3d_w,
+                p2_3d_w,
+                PoseStamped(
                     header=Header(frame_id="world",
                                   stamp=stamp),
                     pose=Pose(
-                        position=coords_transformer.transform_point(
-                            center_3d).point,
-                        orientation=center_orientation
+                        position=c_3d_w.point,
+                        orientation=c_orientation
                     )
                 )
             )
 
         objects_publisher.publish_stack("world", stamp)
 
-        header = Header(frame_id=frame_id, stamp=stamp)
-        # monomask_publisher.publish(monomask, header=header)
+        # monomask_publisher.publish(monomask, frame_id, stamp)
         # monomask = np.where(indexed_img > 0, 255, 0)[
         #     :, :, np.newaxis].astype("uint8")
-        cndsimg_publisher.publish(cnds_img, header=header)
+        cndsimg_publisher.publish(cnds_img, frame_id, stamp)
 
     except Exception as err:
         rospy.logerr(err)

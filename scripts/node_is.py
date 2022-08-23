@@ -44,17 +44,18 @@ def callback(msg: Image, callback_args: Union[list, tuple]):
         rospy.loginfo(msg.header)
         img = bridge.imgmsg_to_cv2(msg)
         res = predictor.predict(img)
-        header = Header(stamp=msg.header.stamp,
-                        frame_id=msg.header.frame_id)
+        frame_id = msg.header.frame_id
+        stamp = msg.header.stamp
 
         # publish instances
         instances = [Instance.from_instances(
             res, i) for i in range(res.num_instances)]
-        instances_publisher.publish(res.num_instances, instances, header)
+        instances_publisher.publish(
+            res.num_instances, instances, frame_id, stamp)
 
         # publish image
         res_img = res.draw_instances(img[:, :, ::-1])
-        seg_publisher.publish(res_img, header)
+        seg_publisher.publish(res_img, frame_id, stamp)
 
     except Exception as err:
         rospy.logerr(err)
