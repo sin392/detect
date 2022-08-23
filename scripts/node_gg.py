@@ -22,6 +22,7 @@ from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformListener
 from tf.transformations import quaternion_from_matrix
 
+from ros.publisher import ImageMatPublisher
 from utils.grasp import generate_candidates_list
 from utils.image import IndexedMask
 from utils.visualize import draw_candidates_and_boxes
@@ -74,8 +75,8 @@ def callback(img_msg: Image, depth_msg: Image,
              callback_args: Union[list, tuple]):
     tf_buffer: Buffer = callback_args[0]
     cam_info = callback_args[1]
-    # monomask_publisher: rospy.Publisher = callback_args[2]
-    cndsimg_publisher: rospy.Publisher = callback_args[3]
+    # monomask_publisher: ImageMatPublisher = callback_args[2]
+    cndsimg_publisher: ImageMatPublisher = callback_args[3]
     objects_publisher: rospy.Publisher = callback_args[4]
     bridge = CvBridge()
 
@@ -154,21 +155,14 @@ def callback(img_msg: Image, depth_msg: Image,
 
         # objects_publisher.publish(detected_objects_msg)
 
-        # res_img = np.where(indexed_img > 0, 255, 0)[
+        header = Header(stamp=rospy.get_rostime(),
+                        frame_id=img_msg.header.frame_id)
+        # monomask = np.where(indexed_img > 0, 255, 0)[
         #     :, :, np.newaxis].astype("uint8")
-        # res_img_msg = bridge.cv2_to_imgmsg(res_img, "mono8")
-
-        res_img2 = img.copy()
-        res_img2 = draw_candidates_and_boxes(
-            res_img2, candidates_list, rotated_boxes, target_indexes=target_indexes, gray=True)
-        res_img2_msg = bridge.cv2_to_imgmsg(res_img2, "rgb8")
-
-        # outputs info publish
-        # header = Header(stamp=rospy.get_rostime(),
-        #                 frame_id=img_msg.header.frame_id)
-        # res_img_msg.header = header
-        # monomask_publisher.publish(res_img_msg)
-        cndsimg_publisher.publish(res_img2_msg)
+        # monomask_publisher.publish(monomask, header=header)
+        candidates_img = draw_candidates_and_boxes(
+            img, candidates_list, rotated_boxes, target_indexes=target_indexes, gray=True)
+        cndsimg_publisher.publish(candidates_img, header=header)
 
     except Exception as err:
         rospy.logerr(err)
@@ -204,10 +198,10 @@ if __name__ == "__main__":
 
     # depth_topic = instances_topic.replace("color", "aligned_depth_to_color")
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
-    monomask_publisher = rospy.Publisher(
-        "/mono_mask", Image, queue_size=10)
-    cndsimg_publisher = rospy.Publisher(
-        "/candidates_img", Image, queue_size=10)
+    monomask_publisher = ImageMatPublisher(
+        "/mono_mask", queue_size=10)
+    cndsimg_publisher = ImageMatPublisher(
+        "/candidates_img", queue_size=10)
     objects_publisher = rospy.Publisher(
         "/detected_objects", DetectedObjectsStamped, queue_size=10)
     img_subscriber = mf.Subscriber(image_topic, Image)
