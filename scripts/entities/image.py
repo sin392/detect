@@ -1,8 +1,32 @@
-from typing import Union
+from typing import List, Tuple, Union
 
 import cv2
 import numpy as np
 from torch import Tensor
+from utils.image import gen_color_palette
+
+
+class IndexedMask(np.ndarray):
+    """0: background, 1~n: classes"""
+    def __new__(cls, masks: Union[np.ndarray, List, Tuple]):
+        masks = np.asarray(masks, dtype=np.uint8)
+        assert masks.ndim == 3
+        n, h, w = masks.shape
+        # cast ndarray to IndexedMask
+        self = np.zeros((h, w)).view(cls)
+        # 要検証： masksが深度降順であることを前提にしている
+        for i, mask in enumerate(masks):
+            self[mask != 0] = i + 1
+
+        self.n = n
+        self.palette = gen_color_palette(n)
+        return self
+
+    def to_rgb(self):
+        img = np.zeros((*self.shape, 3), dtype=np.uint8)
+        for i in range(self.n):
+            img[self == i+1] = self.palette[i]
+        return img
 
 
 class BinaryMask:

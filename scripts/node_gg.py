@@ -22,6 +22,7 @@ from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformListener
 from tf.transformations import quaternion_from_matrix
 
+from entities.image import IndexedMask
 from ros.publisher import ImageMatPublisher
 from utils.grasp import generate_candidates_list
 from utils.image import IndexedMask
