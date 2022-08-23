@@ -4,6 +4,7 @@ import numpy as np
 from detectron2.engine import DefaultPredictor
 from detectron2.structures import Boxes
 from detectron2.structures import Instances as RawInstances
+from detectron2.utils.visualizer import ColorMode, Visualizer
 from torch import Tensor
 
 from entities.image import BinaryMask
@@ -53,6 +54,17 @@ class PredictResult:
             self.centers.append(each_mask.get_center())
             self.bboxes.append(each_mask.get_rotated_bbox())
             self.areas.append(each_mask.get_area())
+
+    def draw_instances(self, img, metadata={}, scale=0.5, instance_mode=ColorMode.IMAGE_BW):
+        v = Visualizer(
+            img,
+            metadata=metadata,
+            scale=scale,
+            # remove the colors of unsegmented pixels.
+            # This option is only available for segmentation models
+            instance_mode=instance_mode
+        )
+        return v.draw_instance_predictions(self._instances).get_image()[:, :, ::-1]
 
 
 # これは別の場所に置くべきでは

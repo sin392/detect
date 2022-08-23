@@ -4,7 +4,6 @@ import cv2
 from detectron2.config import get_cfg
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.data.datasets import register_coco_instances
-from detectron2.utils.visualizer import ColorMode, Visualizer
 
 from scripts.entities.predictor import Predictor
 
@@ -51,15 +50,7 @@ if __name__ == "__main__":
         outputs = predictor.predict(img)
         end = time()
 
-        v = Visualizer(
-            img[:, :, ::-1],
-            metadata=metadata,
-            scale=0.5,
-            # remove the colors of unsegmented pixels.
-            # This option is only available for segmentation models
-            instance_mode=ColorMode.IMAGE_BW
-        )
-        out = v.draw_instance_predictions(outputs._instances)
+        out = outputs.draw_instances(img[:, :, ::-1])
         fname = Path(d["file_name"]).stem + ".png"
         print(f"{end - start:.4f}", fname)
 
