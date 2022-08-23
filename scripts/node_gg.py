@@ -11,7 +11,7 @@ import numpy as np
 import rospy
 from cv_bridge import CvBridge
 from detect.msg import (DetectedObject, DetectedObjectsStamped, Instance,
-                        InstancesStamped)
+                        InstancesStamped, RotatedBoundingBox)
 from geometry_msgs.msg import (Point, PointStamped, Pose, PoseStamped,
                                Quaternion)
 from image_geometry import PinholeCameraModel
@@ -25,8 +25,13 @@ from tf.transformations import quaternion_from_matrix
 
 from entities.image import IndexedMask
 from ros.publisher import ImageMatPublisher
-from utils.grasp import generate_candidates_list
-from utils.visualize import draw_candidates_and_boxes
+from ros.utils import multiarray2numpy
+from utils.grasp import ParallelGraspDetector, generate_candidates_list
+from utils.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidates
+
+
+def bboxmsg2list(msg: RotatedBoundingBox):
+    return np.int0([msg.upper_left, msg.upper_right, msg.lower_right, msg.lower_left])
 
 
 def get_direction(cam_info, u, v):
@@ -85,6 +90,7 @@ def callback(img_msg: Image, depth_msg: Image,
         img = bridge.imgmsg_to_cv2(img_msg)
         depth = bridge.imgmsg_to_cv2(depth_msg)
         # TODO: 物体の深度順にソートできてる？
+        # masksは移行したい
         masks = np.array([bridge.imgmsg_to_cv2(x.mask)
                          for x in instances_msg.instances])
         indexed_img = IndexedMask(masks)
@@ -102,13 +108,18 @@ def callback(img_msg: Image, depth_msg: Image,
         target_indexes = []
         cnds_img = convert_rgb_to_3dgray(img)
         instances: List[Instance] = instances_msg.instances
+        grasp_detector = ParallelGraspDetector(15, margin=3, func="min")
         for i, instance in enumerate(instances):
-            candidates = candidates_list[i]
             center = instance.center
+            bbox = bboxmsg2list(instance.bbox)
+            contour = multiarray2numpy(int, np.int32, instance.contour)
+            candidates = grasp_detector.detect(center, bbox, contour, masks[i])
+
             u, v = int(center[1]), int(center[0])
             # radius = radiuses[i]
 
             # filter candidates, is x,y? or h,w?
+            # 把持点のdepthがcenterのdepthより大きくないとだめ
             candidates = [(p1, p2) for p1, p2 in candidates
                           if min(depth[int(p1[1])][int(p1[0])], depth[int(p2[1])][int(p2[0])]) >= depth[u, v]]
             rospy.loginfo(f"{len(candidates_list[i])} {len(candidates)}")
@@ -116,6 +127,7 @@ def callback(img_msg: Image, depth_msg: Image,
                 rospy.loginfo("skip")
                 continue
             candidates_list[i] = candidates
+
             target_index = randint(
                 0, len(candidates)-1) if len(candidates) != 0 else 0
             p1, p2 = candidates[target_index]
@@ -136,9 +148,7 @@ def callback(img_msg: Image, depth_msg: Image,
                                       distance_margin=height)
             center_orientation = get_orientation(u, v, depth, masks[i])
 
-            bbox_msg = instance.bbox
-            cnds_img = draw_bbox(cnds_img, [
-                                 bbox_msg.upper_left, bbox_msg.upper_right, bbox_msg.lower_right, bbox_msg.lower_left])
+            cnds_img = draw_bbox(cnds_img, bbox)
             cnds_img = draw_candidates(
                 cnds_img, candidates, target_index=target_index)
 
@@ -167,10 +177,7 @@ def callback(img_msg: Image, depth_msg: Image,
         # monomask_publisher.publish(monomask, header=header)
         # monomask = np.where(indexed_img > 0, 255, 0)[
         #     :, :, np.newaxis].astype("uint8")
-        # monomask_publisher.publish(monomask, header=header)
-        candidates_img = draw_candidates_and_boxes(
-            img, candidates_list, rotated_boxes, target_indexes=target_indexes, gray=True)
-        cndsimg_publisher.publish(candidates_img, header=header)
+        cndsimg_publisher.publish(cnds_img, header=header)
 
     except Exception as err:
         rospy.logerr(err)

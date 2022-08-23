@@ -1,29 +1,59 @@
+from xmlrpc.client import boolean
+
 import cv2
 import numpy as np
 
 
-def generate_candidates(center, bbox, mask, unit_angle, func):
-    func = min if func == 'min' else max
-    # bbox is (xmin, ymin, xmax, ymax)
-    radius = func(np.linalg.norm(bbox[2]-bbox[0]),
-                  np.linalg.norm(bbox[3]-bbox[1])) / 2
-    v = np.array([0, -1])*radius  # 単位ベクトル x 半径
-    cos, sin = np.cos(np.radians(unit_angle)), np.sin(np.radians(unit_angle))
-    rmat = np.array([[cos, -sin], [sin, cos]])
-    candidates = []
-    for i in range(180//unit_angle):
-        v = np.dot(v, rmat)  # 回転ベクトルの更新
-        p1, p2 = center + v, center - v
-        # TOFIX: ptにそのままp1, p2をわたすと何故かエラー
-        p1, p2 = (int(p1[0].item()), int(p1[1].item())
-                  ), (int(p2[0].item()), int(p2[1].item()))
-        # 画面範囲を超える場合は候補から除外
-        h, w = mask.shape
+class ParallelGraspDetector:
+    def __init__(self, unit_angle=15, margin=3, func="min"):
+        self.func = min if func == 'min' else max
+        self.unit_angle = unit_angle
+        self.margin = margin
+        cos, sin = np.cos(np.radians(unit_angle)), np.sin(
+            np.radians(unit_angle))
+        self.rmat = np.array([[cos, -sin], [sin, cos]])
+
+    # radiusは外に出したい
+    def detect(self, center, bbox, contour, mask):
+        # bbox is (xmin, ymin, xmax, ymax)
+
+        radius = self.func(np.linalg.norm(bbox[2]-bbox[0]),
+                           np.linalg.norm(bbox[3]-bbox[1])) / 2
+        radius += self.margin
+        v = np.array([0, -1])*radius  # 単位ベクトル x 半径
+
+        candidates = []
+        for i in range(180//self.unit_angle):
+            v = np.dot(v, self.rmat)  # 回転ベクトルの更新
+            p1, p2 = center + v, center - v
+            # TOFIX: ptにそのままp1, p2をわたすと何故かエラー
+            p1, p2 = (int(p1[0].item()), int(p1[1].item())
+                      ), (int(p2[0].item()), int(p2[1].item()))
+
+            # maskは多分
+            h, w = mask.shape
+            skip_flg = False
+            skip_flg = skip_flg or self._is_outside_frame(h, w, p1, p2)
+            if not skip_flg:
+                candidates.append((p1, p2))
+
+        return candidates
+
+    def _is_outside_frame(self, h, w, p1, p2) -> boolean:
+        """画面に入らない点はスキップ"""
         if p1[0] < 0 or p1[1] < 0 or h <= p1[1] or w <= p1[0]:
-            continue
+            return True
         if p2[0] < 0 or p2[1] < 0 or h <= p2[1] or w <= p2[0]:
-            continue
-        candidates.append((p1, p2))
+            return True
+        return False
+
+    def _is_in_mask(self, contour, p1, p2):
+        """把持点がマスクにかぶっていればスキップ"""
+        if cv2.pointPolygonTest(contour, p1, measureDist=False):
+            return True
+        if cv2.pointPolygonTest(contour, p2, measureDist=False):
+            return True
+        return False
 
 
 def generate_candidates_list(indexed_img, unit_angle=15, margin=3, func='min'):

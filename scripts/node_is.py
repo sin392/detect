@@ -9,11 +9,11 @@ from detect.msg import Instance as RawInstance
 from detect.msg import RotatedBoundingBox
 from detectron2.config import get_cfg
 from sensor_msgs.msg import Image
-from std_msgs.msg import Header
+from std_msgs.msg import Header, Int32MultiArray
 
-from entities.predictor import Instances as InstancesSchema
-from entities.predictor import Predictor
+from entities.predictor import Predictor, PredictResult
 from ros.publisher import ImageMatPublisher, InstancesPublisher
+from ros.utils import numpy2multiarray
 
 bridge = CvBridge()
 
@@ -22,14 +22,16 @@ class Instance(RawInstance):
     global bridge
 
     @classmethod
-    def from_instances(cls, instances: InstancesSchema, index: int):
+    def from_instances(cls, instances: PredictResult, index: int):
         return Instance(
             label=str(instances.labels[index]),
             score=instances.scores[index],
             bbox=RotatedBoundingBox(*instances.bboxes[index]),
             center=instances.centers[index],
             area=instances.areas[index],
-            mask=bridge.cv2_to_imgmsg(instances.mask_array[index])
+            mask=bridge.cv2_to_imgmsg(instances.mask_array[index]),
+            contour=numpy2multiarray(
+                Int32MultiArray, instances.contours[index])
         )
 
 

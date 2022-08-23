@@ -1,6 +1,7 @@
 string label
 float32 score
-RotatedBoundingBox bbox
-float32[] center
 float32 area
+float32[] center
 sensor_msgs/Image mask
+std_msgs/Int32MultiArray contour
+RotatedBoundingBox bbox
