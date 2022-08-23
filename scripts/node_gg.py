@@ -95,16 +95,12 @@ def callback(img_msg: Image, depth_msg: Image,
                          for x in instances_msg.instances])
         indexed_img = IndexedMask(masks)
 
-        # bboxはすでに計算済みだが、rotated_bboxの計算と重複してる...
-        candidates_list, _, rotated_boxes, radiuses, _ = \
-            generate_candidates_list(indexed_img, 20, 3, 'min')
         # choice specific candidate
         # detected_objects_msg = DetectedObjectsStamped()
         # detected_objects_msg.header.frame_id = "world"
         # detected_objects_msg.header.stamp = instances_msg.header.stamp
         # trans = tf_buffer.lookup_transform(
         #     "world", depth_msg.header.frame_id, depth_msg.header.stamp)
-        assert instances_msg.num_instances == len(candidates_list)
         target_indexes = []
         cnds_img = convert_rgb_to_3dgray(img)
         instances: List[Instance] = instances_msg.instances
@@ -122,11 +118,10 @@ def callback(img_msg: Image, depth_msg: Image,
             # 把持点のdepthがcenterのdepthより大きくないとだめ
             candidates = [(p1, p2) for p1, p2 in candidates
                           if min(depth[int(p1[1])][int(p1[0])], depth[int(p2[1])][int(p2[0])]) >= depth[u, v]]
-            rospy.loginfo(f"{len(candidates_list[i])} {len(candidates)}")
+            rospy.loginfo(len(candidates))
             if len(candidates) == 0:
                 rospy.loginfo("skip")
                 continue
-            candidates_list[i] = candidates
 
             target_index = randint(
                 0, len(candidates)-1) if len(candidates) != 0 else 0
