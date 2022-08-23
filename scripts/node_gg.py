@@ -29,6 +29,8 @@ from ros.utils import multiarray2numpy
 from utils.grasp import ParallelGraspDetector, generate_candidates_list
 from utils.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidates
 
+FRAME_SIZE = (480, 640)
+
 
 def bboxmsg2list(msg: RotatedBoundingBox):
     return np.int0([msg.upper_left, msg.upper_right, msg.lower_right, msg.lower_left])
@@ -91,9 +93,9 @@ def callback(img_msg: Image, depth_msg: Image,
         depth = bridge.imgmsg_to_cv2(depth_msg)
         # TODO: 物体の深度順にソートできてる？
         # masksは移行したい
-        masks = np.array([bridge.imgmsg_to_cv2(x.mask)
-                         for x in instances_msg.instances])
-        indexed_img = IndexedMask(masks)
+        # masks = np.array([bridge.imgmsg_to_cv2(x.mask)
+        #                  for x in instances_msg.instances])
+        # indexed_img = IndexedMask(masks)
 
         # choice specific candidate
         # detected_objects_msg = DetectedObjectsStamped()
@@ -104,44 +106,43 @@ def callback(img_msg: Image, depth_msg: Image,
         target_indexes = []
         cnds_img = convert_rgb_to_3dgray(img)
         instances: List[Instance] = instances_msg.instances
-        grasp_detector = ParallelGraspDetector(15, margin=3, func="min")
+        # detector should be moved outside callback
+        grasp_detector = ParallelGraspDetector(
+            frame_size=FRAME_SIZE, unit_angle=15, margin=3, func="min")
         for i, instance in enumerate(instances):
             center = instance.center
             bbox = bboxmsg2list(instance.bbox)
             contour = multiarray2numpy(int, np.int32, instance.contour)
-            candidates = grasp_detector.detect(center, bbox, contour, masks[i])
+            mask = bridge.imgmsg_to_cv2(instance.mask)
 
-            u, v = int(center[1]), int(center[0])
-            # radius = radiuses[i]
-
-            # filter candidates, is x,y? or h,w?
-            # 把持点のdepthがcenterのdepthより大きくないとだめ
-            candidates = [(p1, p2) for p1, p2 in candidates
-                          if min(depth[int(p1[1])][int(p1[0])], depth[int(p2[1])][int(p2[0])]) >= depth[u, v]]
-            rospy.loginfo(len(candidates))
+            candidates = grasp_detector.detect(
+                center, bbox, contour, depth, filter=True)
             if len(candidates) == 0:
-                rospy.loginfo("skip")
                 continue
 
+            # select best candidate
             target_index = randint(
                 0, len(candidates)-1) if len(candidates) != 0 else 0
             p1, p2 = candidates[target_index]
             target_indexes.append(target_index)
 
+            # 3d projection
             p1_3d = project_to_3d(cam_info, int(p1[1]), int(p1[0]), depth,
                                   depth_msg.header.frame_id, depth_msg.header.stamp)
             p2_3d = project_to_3d(cam_info, int(p2[1]), int(p2[0]), depth,
                                   depth_msg.header.frame_id, depth_msg.header.stamp)
+
             radius = np.linalg.norm(
                 np.array([p1_3d.point.x, p1_3d.point.y, p1_3d.point.z]) -
                 np.array([p2_3d.point.x, p2_3d.point.y, p2_3d.point.z])
             ) / 2
             height = radius / 2
+            u, v = int(center[1]), int(center[0])
             center_3d = project_to_3d(cam_info, u, v, depth,
                                       depth_msg.header.frame_id, depth_msg.header.stamp,
                                       # height分ずらす
                                       distance_margin=height)
-            center_orientation = get_orientation(u, v, depth, masks[i])
+            center_orientation = get_orientation(u, v, depth, mask)
 
             cnds_img = draw_bbox(cnds_img, bbox)
             cnds_img = draw_candidates(

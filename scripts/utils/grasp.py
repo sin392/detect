@@ -1,3 +1,4 @@
+from typing import Tuple
 from xmlrpc.client import boolean
 
 import cv2
@@ -5,7 +6,8 @@ import numpy as np
 
 
 class ParallelGraspDetector:
-    def __init__(self, unit_angle=15, margin=3, func="min"):
+    def __init__(self, frame_size: Tuple[int, int], unit_angle=15, margin=3, func="min"):
+        self.h, self.w = frame_size
         self.func = min if func == 'min' else max
         self.unit_angle = unit_angle
         self.margin = margin
@@ -14,7 +16,7 @@ class ParallelGraspDetector:
         self.rmat = np.array([[cos, -sin], [sin, cos]])
 
     # radiusは外に出したい
-    def detect(self, center, bbox, contour, mask):
+    def detect(self, center, bbox, contour, depth, filter=True):
         # bbox is (xmin, ymin, xmax, ymax)
 
         radius = self.func(np.linalg.norm(bbox[2]-bbox[0]),
@@ -30,30 +32,36 @@ class ParallelGraspDetector:
             p1, p2 = (int(p1[0].item()), int(p1[1].item())
                       ), (int(p2[0].item()), int(p2[1].item()))
 
-            # maskは多分
-            h, w = mask.shape
             skip_flg = False
-            skip_flg = skip_flg or self._is_outside_frame(h, w, p1, p2)
+            if filter:
+                skip_flg = skip_flg or self._is_outside_frame(p1, p2)
+                # skip_flg = skip_flg or self._is_in_mask(p1, p2, contour)
+                # skip_flg = skip_flg or self._is_center_above_points(
+                #     p1, p2, center, depth)
             if not skip_flg:
                 candidates.append((p1, p2))
 
         return candidates
 
-    def _is_outside_frame(self, h, w, p1, p2) -> boolean:
+    def _is_outside_frame(self, p1, p2) -> boolean:
         """画面に入らない点はスキップ"""
-        if p1[0] < 0 or p1[1] < 0 or h <= p1[1] or w <= p1[0]:
+        if p1[0] < 0 or p1[1] < 0 or self.h <= p1[1] or self.w <= p1[0]:
             return True
-        if p2[0] < 0 or p2[1] < 0 or h <= p2[1] or w <= p2[0]:
+        if p2[0] < 0 or p2[1] < 0 or self.h <= p2[1] or self.w <= p2[0]:
             return True
         return False
 
-    def _is_in_mask(self, contour, p1, p2):
+    def _is_in_mask(self, p1, p2, contour):
         """把持点がマスクにかぶっていればスキップ"""
         if cv2.pointPolygonTest(contour, p1, measureDist=False):
             return True
         if cv2.pointPolygonTest(contour, p2, measureDist=False):
             return True
         return False
+
+    def _is_center_above_points(self, p1, p2, center, depth):
+        """中心のdepthが把持点のdepthよりも低ければスキップ"""
+        return min(depth[p1[1]][p1[0]], depth[p2[1]][p2[0]]) >= depth[center[1]][center[0]]
 
 
 def generate_candidates_list(indexed_img, unit_angle=15, margin=3, func='min'):
