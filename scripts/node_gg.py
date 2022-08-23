@@ -3,15 +3,14 @@ import warnings
 from os.path import expanduser
 from pathlib import Path
 from random import randint
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
-import cv2
 import message_filters as mf
 import numpy as np
 import rospy
 from cv_bridge import CvBridge
-from detect.msg import (DetectedObject, DetectedObjectsStamped, Instance,
-                        InstancesStamped, RotatedBoundingBox)
+from detect.msg import (DetectedObjectsStamped, Instance, InstancesStamped,
+                        RotatedBoundingBox)
 from geometry_msgs.msg import (Point, PointStamped, Pose, PoseStamped,
                                Quaternion)
 from image_geometry import PinholeCameraModel
@@ -23,10 +22,9 @@ from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformListener
 from tf.transformations import quaternion_from_matrix
 
-from entities.image import IndexedMask
-from ros.publisher import ImageMatPublisher
+from ros.publisher import DetectedObjectsPublisher, ImageMatPublisher
 from ros.utils import multiarray2numpy
-from utils.grasp import ParallelGraspDetector, generate_candidates_list
+from utils.grasp import ParallelGraspDetector
 from utils.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidates
 
 FRAME_SIZE = (480, 640)
@@ -92,8 +90,9 @@ class CoordinateTransformer:
         return tf_point
 
 
-CallbackArgsType = Tuple[ImageMatPublisher, ImageMatPublisher, rospy.Publisher,
-                         PointProjector, PoseEstimator, ParallelGraspDetector,
+CallbackArgsType = Tuple[ImageMatPublisher, ImageMatPublisher,
+                         DetectedObjectsPublisher, PointProjector,
+                         PoseEstimator, ParallelGraspDetector,
                          CoordinateTransformer]
 
 
@@ -116,11 +115,6 @@ def callback(img_msg: Image, depth_msg: Image,
     try:
         img = bridge.imgmsg_to_cv2(img_msg)
         depth = bridge.imgmsg_to_cv2(depth_msg)
-
-        # choice specific candidate
-        detected_objects_msg = DetectedObjectsStamped()
-        detected_objects_msg.header.frame_id = "world"
-        detected_objects_msg.header.stamp = stamp
 
         target_indexes = []
         cnds_img = convert_rgb_to_3dgray(img)
@@ -158,25 +152,23 @@ def callback(img_msg: Image, depth_msg: Image,
             cnds_img = draw_candidates(
                 cnds_img, candidates, target_index=target_index)
 
-            detected_objects_msg.objects.append(
-                DetectedObject(
-                    radius=radius,
-                    height=height,
-                    p1=coords_transformer.transform_point(p1_3d),
-                    p2=coords_transformer.transform_point(p2_3d),
-                    center=PoseStamped(
-                        header=Header(frame_id="world",
-                                      stamp=stamp),
-                        pose=Pose(
-                            # position is Point (not PointStamped)
-                            position=coords_transformer.transform_point(
-                                center_3d).point,
-                            orientation=center_orientation
-                        )
+            objects_publisher.push_item(
+                radius=radius,
+                height=height,
+                p1=coords_transformer.transform_point(p1_3d),
+                p2=coords_transformer.transform_point(p2_3d),
+                center=PoseStamped(
+                    header=Header(frame_id="world",
+                                  stamp=stamp),
+                    pose=Pose(
+                        position=coords_transformer.transform_point(
+                            center_3d).point,
+                        orientation=center_orientation
                     )
-                ))
+                )
+            )
 
-        objects_publisher.publish(detected_objects_msg)
+        objects_publisher.publish_stack("world", stamp)
 
         header = Header(frame_id=frame_id, stamp=stamp)
         # monomask_publisher.publish(monomask, header=header)
@@ -223,7 +215,7 @@ if __name__ == "__main__":
         "/mono_mask", queue_size=10)
     cndsimg_publisher = ImageMatPublisher(
         "/candidates_img", queue_size=10)
-    objects_publisher = rospy.Publisher(
+    objects_publisher = DetectedObjectsPublisher(
         "/detected_objects", DetectedObjectsStamped, queue_size=10)
     # Subscribers
     img_subscriber = mf.Subscriber(image_topic, Image)
