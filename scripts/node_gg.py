@@ -80,13 +80,15 @@ class CoordinateTransformer:
     # 生焼け
     def prepare(self, target_frame: str, frame_id: str, stamp: rospy.Time):
         """transを取得"""
+        self.header = Header(frame_id=frame_id, stamp=stamp)
         self.trans = self.buffer.lookup_transform(
             target_frame, frame_id, stamp)
 
-    def transform_point(self, point: PointStamped) -> PointStamped:
+    def transform_point(self, point: Point) -> PointStamped:
         if not self.trans:
             raise Exception("call prepare before transforming")
-        tf_point = do_transform_point(point, self.trans)
+        point_stamped = PointStamped(header=self.header, point=point)
+        tf_point = do_transform_point(point_stamped, self.trans)
         return tf_point
 
 
