@@ -83,7 +83,7 @@ class CoordinateTransformer:
         self.trans = self.buffer.lookup_transform(
             target_frame, frame_id, stamp)
 
-    def transform_point(self, point: Point) -> PointStamped:
+    def transform_point(self, point: PointStamped) -> PointStamped:
         if not self.trans:
             raise Exception("call prepare before transforming")
         tf_point = do_transform_point(point, self.trans)
