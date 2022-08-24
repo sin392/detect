@@ -104,7 +104,7 @@ def callback(img_msg: Image, depth_msg: Image,
     bridge = CvBridge()
     # monomask_publisher: ImageMatPublisher = callback_args[0]
     cndsimg_publisher = callback_args[1]
-    # objects_publisher = callback_args[2]
+    objects_publisher = callback_args[2]
     projector = callback_args[3]
     pose_estimator = callback_args[4]
     grasp_detector = callback_args[5]
