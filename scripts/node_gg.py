@@ -205,7 +205,7 @@ if __name__ == "__main__":
     info_topics = rospy.get_param(
         "info_topics", "/body_camera/aligned_depth_to_color/camera_info")
 
-    delay = 1 / fps * 0.5
+    delay = 1 / fps  # * 0.5
     # for instances_topic in instances_topics.split():
     instances_topic = instances_topics
     image_topic = image_topics
