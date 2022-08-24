@@ -3,14 +3,14 @@ import warnings
 from os.path import expanduser
 from pathlib import Path
 from random import randint
-from typing import Union
+from typing import List, Tuple
 
-import cv2
 import message_filters as mf
 import numpy as np
 import rospy
 from cv_bridge import CvBridge
-from detect.msg import DetectedObject, DetectedObjectsStamped, InstancesStamped
+from detect.msg import (DetectedObjectsStamped, Instance, InstancesStamped,
+                        RotatedBoundingBox)
 from geometry_msgs.msg import (Point, PointStamped, Pose, PoseStamped,
                                Quaternion)
 from image_geometry import PinholeCameraModel
@@ -22,157 +22,163 @@ from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformListener
 from tf.transformations import quaternion_from_matrix
 
-from utils.grasp import generate_candidates_list
-from utils.image import IndexedMask
-from utils.visualize import draw_candidates_and_boxes
+from modules.grasp import ParallelGraspDetector
+from modules.ros.publisher import DetectedObjectsPublisher, ImageMatPublisher
+from modules.ros.utils import multiarray2numpy
+from modules.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidates
+
+FRAME_SIZE = (480, 640)
 
 
-def get_direction(cam_info, u, v):
-    cam_model = PinholeCameraModel()
-    cam_model.fromCameraInfo(cam_info)
-    vector = np.array(cam_model.projectPixelTo3dRay((u, v)))
-    return vector
+def bboxmsg2list(msg: RotatedBoundingBox):
+    return np.int0([msg.upper_left, msg.upper_right, msg.lower_right, msg.lower_left])
 
 
-def project_to_3d(cam_info, u, v, depth, frame_id, stamp, distance_margin=0):
-    unit_v = get_direction(cam_info, u, v)
-    distance = depth[u, v] / 1000 + distance_margin  # mm to m
+class PointProjector:
+    def __init__(self, cam_info):
+        self.cam_info = cam_info
 
-    object_point = PointStamped(point=Point(*(unit_v * distance)))
-    object_point.header.frame_id = frame_id
-    object_point.header.stamp = stamp
+    def pixel_to_3d(self, u, v, depth, distance_margin=0) -> Point:
+        """ピクセルをカメラ座標系へ３次元投影"""
+        unit_v = self._get_direction(u, v)
+        distance = depth[u, v] / 1000 + distance_margin  # mm to m
+        object_point = Point(*(unit_v * distance))
+        return object_point
 
-    return object_point
-
-
-def get_orientation(u, v, depth, mask):
-    pca = PCA(n_components=3)
-    ss = StandardScaler()
-    # ここの値あってるか要検証...
-    pts = [(u, v, depth[y, x]) for y, x in zip(*np.where(mask == 1))]
-    pca.fit(ss.fit_transform(pts))
-    n, t, b = pca.components_
-    rmat_44 = np.eye(4)
-    rmat_33 = np.dstack([n, t, b])[0]
-    rmat_44[:3, :3] = rmat_33
-    # 4x4回転行列しか受け入れない罠
-    q = quaternion_from_matrix(rmat_44)
-    return Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+    def _get_direction(self, u, v):
+        """カメラ座標系原点から対象点までの方向ベクトルを算出"""
+        cam_model = PinholeCameraModel()
+        cam_model.fromCameraInfo(self.cam_info)
+        vector = np.array(cam_model.projectPixelTo3dRay((u, v)))
+        return vector
 
 
-def transform_point(tf_buffer: Buffer, point: PointStamped, target_frame: str, trans=None) -> PointStamped:
-    if not trans:
-        trans = tf_buffer.lookup_transform(
-            target_frame, point.header.frame_id, point.header.stamp)
-    tf_point = do_transform_point(
-        point, trans)
-    return tf_point
+class PoseEstimator:
+    def __init__(self):
+        self.pca = PCA(n_components=3)
+        self.ss = StandardScaler()
+
+    def get_orientation(self, depth, mask) -> Quaternion:
+        """マスクに重なったデプスからインスタンスの姿勢を算出"""
+        # ここの値あってるか要検証...
+        pts = [(x, y, depth[y, x]) for y, x in zip(*np.where(mask > 0))]
+        self.pca.fit(self.ss.fit_transform(pts))
+        n, t, b = self.pca.components_
+        rmat_44 = np.eye(4)
+        rmat_33 = np.dstack([n, t, b])[0]
+        rmat_44[:3, :3] = rmat_33
+        # 4x4回転行列しか受け入れない罠
+        q = quaternion_from_matrix(rmat_44)
+        return Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
+
+
+class CoordinateTransformer:
+    def __init__(self):
+        self.buffer = Buffer()
+        self.lisner = TransformListener(self.buffer)
+
+    # 生焼け
+    def prepare(self, target_frame: str, frame_id: str, stamp: rospy.Time):
+        """transを取得"""
+        self.header = Header(frame_id=frame_id, stamp=stamp)
+        self.trans = self.buffer.lookup_transform(
+            target_frame, frame_id, stamp)
+
+    def transform_point(self, point: Point) -> PointStamped:
+        if not self.trans:
+            raise Exception("call prepare before transforming")
+        point_stamped = PointStamped(header=self.header, point=point)
+        tf_point = do_transform_point(point_stamped, self.trans)
+        return tf_point
+
+
+CallbackArgsType = Tuple[ImageMatPublisher, ImageMatPublisher,
+                         DetectedObjectsPublisher, PointProjector,
+                         PoseEstimator, ParallelGraspDetector,
+                         CoordinateTransformer]
 
 
 def callback(img_msg: Image, depth_msg: Image,
              instances_msg: InstancesStamped,
-             callback_args: Union[list, tuple]):
-    tf_buffer: Buffer = callback_args[0]
-    cam_info = callback_args[1]
-    # monomask_publisher: rospy.Publisher = callback_args[2]
-    cndsimg_publisher: rospy.Publisher = callback_args[3]
-    objects_publisher: rospy.Publisher = callback_args[4]
+             callback_args: CallbackArgsType):
     bridge = CvBridge()
+    # monomask_publisher: ImageMatPublisher = callback_args[0]
+    cndsimg_publisher = callback_args[1]
+    objects_publisher = callback_args[2]
+    projector = callback_args[3]
+    pose_estimator = callback_args[4]
+    grasp_detector = callback_args[5]
+    coords_transformer = callback_args[6]
 
+    # detector should be moved outside callback
+    frame_id = depth_msg.header.frame_id
+    stamp = depth_msg.header.stamp
+    coords_transformer.prepare("world", frame_id, stamp)
     try:
-        rospy.loginfo("callback")
         img = bridge.imgmsg_to_cv2(img_msg)
         depth = bridge.imgmsg_to_cv2(depth_msg)
-        # TODO: 物体の深度順にソートできてる？
-        masks = np.array([bridge.imgmsg_to_cv2(x.mask)
-                         for x in instances_msg.instances])
-        indexed_img = IndexedMask(masks)
-        # centers = np.array([x.center
-        #                     for x in instances_msg.instances])
 
-        # centersどちら使うべきか
-        rospy.loginfo("candidates")
-        candidates_list, contours, rotated_boxes, radiuses, centers = \
-            generate_candidates_list(indexed_img, 20, 3, 'min')
-        # choice specific candidate
-        rospy.loginfo("detect")
-        detected_objects_msg = DetectedObjectsStamped()
-        detected_objects_msg.header.frame_id = "world"
-        detected_objects_msg.header.stamp = instances_msg.header.stamp
-        # trans = tf_buffer.lookup_transform(
-        #     "world", depth_msg.header.frame_id, depth_msg.header.stamp)
-        rospy.loginfo(len(candidates_list))
         target_indexes = []
-        for i in range(len(candidates_list)):
-            candidates = candidates_list[i]
-            center = centers[i]
-            u, v = int(center[1]), int(center[0])
-            # radius = radiuses[i]
+        cnds_img = convert_rgb_to_3dgray(img)
+        instances: List[Instance] = instances_msg.instances
+        for instance in instances:
+            center = instance.center
+            bbox = bboxmsg2list(instance.bbox)
+            contour = multiarray2numpy(int, np.int32, instance.contour)
+            mask = bridge.imgmsg_to_cv2(instance.mask)
 
-
-            # filter candidates, is x,y? or h,w?
-            candidates = [(p1, p2) for p1, p2 in candidates 
-                            if min(depth[int(p1[1])][int(p1[0])], depth[int(p2[1])][int(p2[0])]) >= depth[u, v]]
-            rospy.loginfo(f"{len(candidates_list[i])} {len(candidates)}")
+            candidates = grasp_detector.detect(
+                center, bbox, contour, depth, filter=True)
             if len(candidates) == 0:
-                rospy.loginfo("skip")
                 continue
-            candidates_list[i] = candidates
-            target_index = randint(0, len(candidates)-1) if len(candidates) != 0 else 0
+
+            # select best candidate
+            target_index = randint(
+                0, len(candidates)-1) if len(candidates) != 0 else 0
             p1, p2 = candidates[target_index]
             target_indexes.append(target_index)
 
-            p1_3d = project_to_3d(cam_info, int(p1[1]), int(p1[0]), depth,
-                                  depth_msg.header.frame_id, depth_msg.header.stamp)
-            p2_3d = project_to_3d(cam_info, int(p2[1]), int(p2[0]), depth,
-                                  depth_msg.header.frame_id, depth_msg.header.stamp)
+            # 3d projection
+            p1_3d_c = projector.pixel_to_3d(*p1[::-1], depth)
+            p2_3d_c = projector.pixel_to_3d(*p2[::-1], depth)
             radius = np.linalg.norm(
-                np.array([p1_3d.point.x, p1_3d.point.y, p1_3d.point.z]) -
-                np.array([p2_3d.point.x, p2_3d.point.y, p2_3d.point.z])
+                np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) -
+                np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])
             ) / 2
-            height = radius / 2
-            center_3d = project_to_3d(cam_info, u, v, depth,
-                                      depth_msg.header.frame_id, depth_msg.header.stamp,
-                                      # height分ずらす
-                                      distance_margin=height)
-            center_orientation = get_orientation(u, v, depth, masks[i])
+            height = radius / 2  # height分ずらす
+            c_3d_c = projector.pixel_to_3d(*center[::-1], depth, height)
+            # transform from camera to world
+            p1_3d_w = coords_transformer.transform_point(p1_3d_c)
+            p2_3d_w = coords_transformer.transform_point(p2_3d_c)
+            c_3d_w = coords_transformer.transform_point(c_3d_c)
 
+            c_orientation = pose_estimator.get_orientation(depth, mask)
 
-        #     detected_objects_msg.objects.append(
-        #         DetectedObject(
-        #             radius=radius,
-        #             height=height,
-        #             p1=transform_point(tf_buffer, p1_3d, "world", trans),
-        #             p2=transform_point(tf_buffer, p2_3d, "world", trans),
-        #             center=PoseStamped(
-        #                 header=Header(frame_id="world",
-        #                               stamp=depth_msg.header.stamp),
-        #                 pose=Pose(
-        #                     # position is Point (not PointStamped)
-        #                     position=transform_point(
-        #                         tf_buffer, center_3d, "world", trans).point,
-        #                     orientation=center_orientation
-        #                 )
-        #             )
-        #         ))
+            cnds_img = draw_bbox(cnds_img, bbox)
+            cnds_img = draw_candidates(
+                cnds_img, candidates, target_index=target_index)
 
-        # objects_publisher.publish(detected_objects_msg)
+            objects_publisher.push_item(
+                radius,
+                height,
+                p1_3d_w,
+                p2_3d_w,
+                PoseStamped(
+                    header=Header(frame_id="world",
+                                  stamp=stamp),
+                    pose=Pose(
+                        position=c_3d_w.point,
+                        orientation=c_orientation
+                    )
+                )
+            )
 
-        # res_img = np.where(indexed_img > 0, 255, 0)[
+        objects_publisher.publish_stack("world", stamp)
+
+        # monomask_publisher.publish(monomask, frame_id, stamp)
+        # monomask = np.where(indexed_img > 0, 255, 0)[
         #     :, :, np.newaxis].astype("uint8")
-        # res_img_msg = bridge.cv2_to_imgmsg(res_img, "mono8")
-
-        res_img2 = img.copy()
-        draw_candidates_and_boxes(
-            res_img2, candidates_list, rotated_boxes, target_indexes=target_indexes, gray=True)
-        res_img2_msg = bridge.cv2_to_imgmsg(res_img2, "rgb8")
-
-        # outputs info publish
-        # header = Header(stamp=rospy.get_rostime(),
-        #                 frame_id=img_msg.header.frame_id)
-        # res_img_msg.header = header
-        # monomask_publisher.publish(res_img_msg)
-        cndsimg_publisher.publish(res_img2_msg)
+        cndsimg_publisher.publish(cnds_img, frame_id, stamp)
 
     except Exception as err:
         rospy.logerr(err)
@@ -208,24 +214,33 @@ if __name__ == "__main__":
 
     # depth_topic = instances_topic.replace("color", "aligned_depth_to_color")
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
-    monomask_publisher = rospy.Publisher(
-        "/mono_mask", Image, queue_size=10)
-    cndsimg_publisher = rospy.Publisher(
-        "/candidates_img", Image, queue_size=10)
-    objects_publisher = rospy.Publisher(
+    # Publishers
+    monomask_publisher = ImageMatPublisher(
+        "/mono_mask", queue_size=10)
+    cndsimg_publisher = ImageMatPublisher(
+        "/candidates_img", queue_size=10)
+    objects_publisher = DetectedObjectsPublisher(
         "/detected_objects", DetectedObjectsStamped, queue_size=10)
+    # Subscribers
     img_subscriber = mf.Subscriber(image_topic, Image)
     depth_subscriber = mf.Subscriber(depth_topic, Image)
     instances_subscriber = mf.Subscriber(instances_topic, InstancesStamped)
-
     subscribers = [img_subscriber, depth_subscriber, instances_subscriber]
 
-    tf_buffer = Buffer()
-    # tf_lisner = TransformListener(tf_buffer)
     cam_info = rospy.wait_for_message(
         info_topic, CameraInfo, timeout=None)
+
+    projector = PointProjector(cam_info)
+    pose_estimator = PoseEstimator()
+    grasp_detector = ParallelGraspDetector(
+        frame_size=FRAME_SIZE, unit_angle=15, margin=3, func="min")
+    coords_transformer = CoordinateTransformer()
+
+    callback_args: CallbackArgsType = (
+        monomask_publisher, cndsimg_publisher,
+        objects_publisher, projector, pose_estimator,
+        grasp_detector, coords_transformer)
     ts = mf.ApproximateTimeSynchronizer(subscribers, 10, delay)
-    ts.registerCallback(callback, (tf_buffer, cam_info, monomask_publisher,
-                        cndsimg_publisher, objects_publisher))
+    ts.registerCallback(callback, callback_args)
 
     rospy.spin()

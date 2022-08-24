@@ -5,65 +5,57 @@ from typing import Union
 
 import rospy
 from cv_bridge import CvBridge
-from detect.msg import BoundingBox, Instance, InstancesStamped
+from detect.msg import Instance as RawInstance
+from detect.msg import RotatedBoundingBox
 from detectron2.config import get_cfg
-from detectron2.utils.visualizer import ColorMode, Visualizer
-from geometry_msgs.msg import Point
 from sensor_msgs.msg import Image
-from std_msgs.msg import Header
+from std_msgs.msg import Int32MultiArray
 
-from inference import Predictor
+from entities.predictor import Predictor, PredictResult
+from modules.ros.publisher import ImageMatPublisher, InstancesPublisher
+from modules.ros.utils import numpy2multiarray
+
+bridge = CvBridge()
+
+
+class Instance(RawInstance):
+    global bridge
+
+    @classmethod
+    def from_instances(cls, instances: PredictResult, index: int):
+        return Instance(
+            label=str(instances.labels[index]),
+            score=instances.scores[index],
+            bbox=RotatedBoundingBox(*instances.bboxes[index]),
+            center=instances.centers[index],
+            area=instances.areas[index],
+            mask=bridge.cv2_to_imgmsg(instances.mask_array[index]),
+            contour=numpy2multiarray(
+                Int32MultiArray, instances.contours[index])
+        )
 
 
 def callback(msg: Image, callback_args: Union[list, tuple]):
-    instances_publisher: rospy.Publisher = callback_args[0]
-    seg_publisher: rospy.Publisher = callback_args[1]
-    bridge = CvBridge()
+    predictor: Predictor = callback_args[0]
+    instances_publisher: InstancesPublisher = callback_args[1]
+    seg_publisher: ImageMatPublisher = callback_args[2]
 
     try:
         rospy.loginfo(msg.header)
         img = bridge.imgmsg_to_cv2(msg)
-        v = Visualizer(
-            img[:, :, ::-1],
-            metadata={},
-            scale=0.5,
-            # remove the colors of unsegmented pixels.
-            # This option is only available for segmentation models
-            instance_mode=ColorMode.IMAGE_BW
-        )
-        outputs = predictor.predict(img)
-        parsed_outputs = outputs.parse()
-        num_instances = parsed_outputs["num_instances"]
+        res = predictor.predict(img)
+        frame_id = msg.header.frame_id
+        stamp = msg.header.stamp
 
-        out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-        res_img = out.get_image()[:, :, ::-1]
-        res_img_msg = bridge.cv2_to_imgmsg(res_img, "rgb8")
-
-        # outputs info publish
-        instances = []
-        for i in range(num_instances):
-            instances.append(
-                Instance(
-                    label=str(parsed_outputs["labels"][i]),
-                    score=parsed_outputs["scores"][i],
-                    bbox=BoundingBox(*parsed_outputs["bboxes"][i]),
-                    center=parsed_outputs["centers"][i],
-                    area=parsed_outputs["areas"][i],
-                    mask=bridge.cv2_to_imgmsg(
-                        parsed_outputs["mask_array"][i].astype("int8"))
-                )
-            )
-
-        header = Header(stamp=msg.header.stamp,
-                        frame_id=msg.header.frame_id)
+        # publish instances
+        instances = [Instance.from_instances(
+            res, i) for i in range(res.num_instances)]
         instances_publisher.publish(
-            InstancesStamped(
-                header=header,
-                num_instances=num_instances,
-                instances=instances,
-            ))
-        res_img_msg.header = header
-        seg_publisher.publish(res_img_msg)
+            res.num_instances, instances, frame_id, stamp)
+
+        # publish image
+        res_img = res.draw_instances(img[:, :, ::-1])
+        seg_publisher.publish(res_img, frame_id, stamp)
 
     except Exception as err:
         rospy.logerr(err)
@@ -90,13 +82,14 @@ if __name__ == "__main__":
     predictor = Predictor(cfg)
 
     for image_topic in image_topics.split():
-        instances_publisher = rospy.Publisher(
-            image_topic + "/instances", InstancesStamped, queue_size=10)
-        seg_publisher = rospy.Publisher(
-            image_topic + "/seg", Image, queue_size=10)
+        instances_publisher = InstancesPublisher(
+            image_topic + "/instances", queue_size=10)
+        seg_publisher = ImageMatPublisher(
+            image_topic + "/seg", queue_size=10)
         rospy.loginfo(f"sub: {image_topic}")
         rospy.Subscriber(image_topic, Image, callback=callback,
                          callback_args=(
+                             predictor,
                              instances_publisher,
                              seg_publisher
                          ))

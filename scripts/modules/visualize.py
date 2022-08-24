@@ -1,18 +1,17 @@
-import colorsys
-
 import cv2
 import numpy as np
 
 
 def draw_bbox(img, box, color=(0, 255, 0), **kwargs):
-    cv2.drawContours(res_img, [np.int0(box)], 0, color, 2, **kwargs)
-    return res_img
+    img = cv2.drawContours(img, [np.int0(box)], 0, color, 2, **kwargs)
+    return img
 
 
 def draw_candidates(img, candidates, color=(0, 0, 255), targer_color=(255, 0, 0), target_index=None, **kwargs):
     for i, (p1, p2) in enumerate(candidates):
-        cv2.line(img, p1, p2, targer_color if i ==
-                 target_index else color, **kwargs)
+        img = cv2.line(img, p1, p2, targer_color if i ==
+                       target_index else color, **kwargs)
+    return img
 
 
 def draw_candidates_and_boxes(img, candidates_list, boxes, target_indexes=None, gray=False, **kwargs):
@@ -21,9 +20,10 @@ def draw_candidates_and_boxes(img, candidates_list, boxes, target_indexes=None, 
     if not target_indexes:
         target_indexes = [None] * len(candidates_list)
     for candidates, box, target_index in zip(candidates_list, boxes, target_indexes):
-        draw_bbox(img, box, **kwargs)
-        draw_candidates(img, candidates,
-                        target_index=target_index, **kwargs)
+        img = draw_bbox(img, box, **kwargs)
+        img = draw_candidates(img, candidates,
+                              target_index=target_index, **kwargs)
+    return img
 
 
 def convert_1dgray_to_3dgray(gray):
