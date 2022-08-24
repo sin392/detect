@@ -11,7 +11,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
 
-from utils.image import get_optimal_hist_th
+from modules.image import get_optimal_hist_th
 
 
 def callback(img_msg: Image, depth_msg: Image, *callback_args: Union[list, tuple]):

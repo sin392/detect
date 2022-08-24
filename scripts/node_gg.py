@@ -22,10 +22,10 @@ from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformListener
 from tf.transformations import quaternion_from_matrix
 
-from ros.publisher import DetectedObjectsPublisher, ImageMatPublisher
-from ros.utils import multiarray2numpy
-from utils.grasp import ParallelGraspDetector
-from utils.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidates
+from modules.grasp import ParallelGraspDetector
+from modules.ros.publisher import DetectedObjectsPublisher, ImageMatPublisher
+from modules.ros.utils import multiarray2numpy
+from modules.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidates
 
 FRAME_SIZE = (480, 640)
 

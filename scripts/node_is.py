@@ -9,11 +9,11 @@ from detect.msg import Instance as RawInstance
 from detect.msg import RotatedBoundingBox
 from detectron2.config import get_cfg
 from sensor_msgs.msg import Image
-from std_msgs.msg import Header, Int32MultiArray
+from std_msgs.msg import Int32MultiArray
 
 from entities.predictor import Predictor, PredictResult
-from ros.publisher import ImageMatPublisher, InstancesPublisher
-from ros.utils import numpy2multiarray
+from modules.ros.publisher import ImageMatPublisher, InstancesPublisher
+from modules.ros.utils import numpy2multiarray
 
 bridge = CvBridge()
 

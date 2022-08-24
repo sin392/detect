@@ -2,8 +2,8 @@ from typing import List, Tuple, Union
 
 import cv2
 import numpy as np
+from modules.image import gen_color_palette
 from torch import Tensor
-from utils.image import gen_color_palette
 
 
 class IndexedMask(np.ndarray):
