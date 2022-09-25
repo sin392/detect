@@ -38,10 +38,16 @@ class PointProjector:
     def __init__(self, cam_info):
         self.cam_info = cam_info
 
-    def pixel_to_3d(self, u, v, depth, distance_margin=0) -> Point:
-        """ピクセルをカメラ座標系へ３次元投影"""
+    def pixel_to_3d(self, u, v, depth, margin_mm=0) -> Point:
+        """
+        ピクセルをカメラ座標系へ３次元投影
+        ---
+        u,v: ピクセル位置
+        depth: 深度画像
+        margin_mm: 物体表面から中心までの距離[mm]
+        """
         unit_v = self._get_direction(u, v)
-        distance = depth[u, v] / 1000 + distance_margin  # mm to m
+        distance = depth[u, v] / 1000 + margin_mm  # mm to m
         object_point = Point(*(unit_v * distance))
         return object_point
 
@@ -133,20 +139,24 @@ def callback(img_msg: Image, depth_msg: Image,
                 continue
 
             # select best candidate
-            target_index = randint(
-                0, len(candidates)-1) if len(candidates) != 0 else 0
+            target_index = randint(0, len(candidates) - 1) if len(candidates) != 0 else 0
             p1, p2 = candidates[target_index]
             target_indexes.append(target_index)
 
             # 3d projection
             p1_3d_c = projector.pixel_to_3d(*p1[::-1], depth)
             p2_3d_c = projector.pixel_to_3d(*p2[::-1], depth)
-            radius = np.linalg.norm(
-                np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) -
-                np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])
+            long_radius = np.linalg.norm(
+                np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) - np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])
             ) / 2
-            height = radius / 2  # height分ずらす
-            c_3d_c = projector.pixel_to_3d(*center[::-1], depth, height)
+            short_radius = long_radius / 2
+
+            c_3d_c = projector.pixel_to_3d(
+                *center[::-1],
+                depth,
+                margin_mm=short_radius  # 中心点は物体表面でなく中心座標を取得したいのでmargin_mmを指定
+            )
+
             # transform from camera to world
             p1_3d_w = coords_transformer.transform_point(p1_3d_c)
             p2_3d_w = coords_transformer.transform_point(p2_3d_c)
@@ -159,8 +169,6 @@ def callback(img_msg: Image, depth_msg: Image,
                 cnds_img, candidates, target_index=target_index)
 
             objects_publisher.push_item(
-                radius,
-                height,
                 p1_3d_w,
                 p2_3d_w,
                 PoseStamped(
@@ -170,7 +178,9 @@ def callback(img_msg: Image, depth_msg: Image,
                         position=c_3d_w.point,
                         orientation=c_orientation
                     )
-                )
+                ),
+                short_radius=short_radius,
+                long_radius=long_radius,
             )
 
         objects_publisher.publish_stack("world", stamp)

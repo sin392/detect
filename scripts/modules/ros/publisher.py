@@ -42,13 +42,13 @@ class DetectedObjectsPublisher(Publisher):
                          subscriber_listener, tcp_nodelay, latch, headers, queue_size)
         self.clear_stack()
 
-    def push_item(self, radius: float, height: float, p1: PointStamped, p2: PointStamped, center: PoseStamped):
+    def push_item(self, p1: PointStamped, p2: PointStamped, center: PoseStamped, short_radius: float, long_radius: float):
         msg = DetectedObject(
-            radius=radius,
-            height=height,
             p1=p1,
             p2=p2,
-            center=center
+            center=center,
+            short_radius=short_radius,
+            long_radius=long_radius
         )
         self.stack.append(msg)
 
