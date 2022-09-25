@@ -28,6 +28,8 @@ services:
       - ./scripts:/home/${USER}/catkin_ws/src/detect/scripts
       - ./resources/datasets:/home/${USER}/catkin_ws/src/detect/resources
       - ./outputs:/home/${USER}/catkin_ws/src/detect/outputs
+      - ./CMakeLists.txt:/home/${USER}/catkin_ws/src/detect/CMakeLists.txt
+      - ./package.xml:/home/${USER}/catkin_ws/src/detect/package.xml
       # - ./:/home/${USER}/catkin_ws/src/detect
     environment:
       - DISPLAY=host.docker.internal${DISPLAY}
