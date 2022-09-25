@@ -23,17 +23,12 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
       # - $HOME/.Xauthority:/root/.Xauthority
       # - XAUTHORITY=/root/.Xauthority
-      # - ./src:/home/${USER}/catkin_ws/src/detect/src
-      # - ./msg:/home/${USER}/catkin_ws/src/detect/msg
-      # - ./scripts:/home/${USER}/catkin_ws/src/detect/scripts
-      # - ./resources/datasets:/home/${USER}/catkin_ws/src/detect/resources
-      # - ./outputs:/home/${USER}/catkin_ws/src/detect/outputs
-      # - ./.git:/home/${USER}/catkin_ws/src/detect/.git
-      # # files
-      # - ./.gitignore:/home/${USER}/catkin_ws/src/detect/.gitignore
-      # - ./CMakeLists.txt:/home/${USER}/catkin_ws/src/detect/CMakeLists.txt
-      # - ./package.xml:/home/${USER}/catkin_ws/src/detect/package.xml
-      - ./:/home/${USER}/catkin_ws/src/detect
+      - ./src:/home/${USER}/catkin_ws/src/detect/src
+      - ./msg:/home/${USER}/catkin_ws/src/detect/msg
+      - ./scripts:/home/${USER}/catkin_ws/src/detect/scripts
+      - ./resources/datasets:/home/${USER}/catkin_ws/src/detect/resources
+      - ./outputs:/home/${USER}/catkin_ws/src/detect/outputs
+      # - ./:/home/${USER}/catkin_ws/src/detect
     environment:
       - DISPLAY=host.docker.internal${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
