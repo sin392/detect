@@ -11,8 +11,7 @@ import rospy
 from cv_bridge import CvBridge
 from detect.msg import (DetectedObjectsStamped, Instance, InstancesStamped,
                         RotatedBoundingBox)
-from geometry_msgs.msg import (Point, PointStamped, Pose, PoseStamped,
-                               Quaternion)
+from geometry_msgs.msg import Point, PointStamped, Pose, Quaternion
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import CameraInfo, Image
 from sklearn.decomposition import PCA
@@ -169,15 +168,11 @@ def callback(img_msg: Image, depth_msg: Image,
                 cnds_img, candidates, target_index=target_index)
 
             objects_publisher.push_item(
-                p1_3d_w,
-                p2_3d_w,
-                PoseStamped(
-                    header=Header(frame_id="world",
-                                  stamp=stamp),
-                    pose=Pose(
-                        position=c_3d_w.point,
-                        orientation=c_orientation
-                    )
+                p1=p1_3d_w.point,
+                p2=p2_3d_w.point,
+                center_pose=Pose(
+                    position=c_3d_w.point,
+                    orientation=c_orientation
                 ),
                 short_radius=short_radius,
                 long_radius=long_radius,
