@@ -8,17 +8,17 @@ from typing import List, Tuple
 import message_filters as mf
 import numpy as np
 import rospy
+from actionlib import SimpleActionClient
 from cv_bridge import CvBridge
 from detect.msg import (DetectedObjectsStamped, Instance, InstancesStamped,
-                        RotatedBoundingBox)
+                        RotatedBoundingBox, TransformPointAction,
+                        TransformPointGoal)
 from geometry_msgs.msg import Point, PointStamped, Pose, Quaternion
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import CameraInfo, Image
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from std_msgs.msg import Header
-from tf2_geometry_msgs import do_transform_point
-from tf2_ros import Buffer, TransformListener
 from tf.transformations import quaternion_from_matrix
 
 from modules.grasp import ParallelGraspDetector
@@ -78,23 +78,22 @@ class PoseEstimator:
 
 
 class CoordinateTransformer:
-    def __init__(self):
-        self.buffer = Buffer()
-        self.lisner = TransformListener(self.buffer)
+    def __init__(self, target_frame: str, client: SimpleActionClient):
+        self.target_frame = target_frame
+        self.client = client
+        self.source_header = Header()
 
-    # 生焼け
-    def prepare(self, target_frame: str, frame_id: str, stamp: rospy.Time):
-        """transを取得"""
-        self.header = Header(frame_id=frame_id, stamp=stamp)
-        self.trans = self.buffer.lookup_transform(
-            target_frame, frame_id, stamp)
+    def set_source_header(self, header: Header):
+        self.sorce_header = header
 
     def transform_point(self, point: Point) -> PointStamped:
-        if not self.trans:
-            raise Exception("call prepare before transforming")
-        point_stamped = PointStamped(header=self.header, point=point)
-        tf_point = do_transform_point(point_stamped, self.trans)
-        return tf_point
+        # 同期的だからServiceで実装してもよかったかも
+        self.client.send_goal_and_wait(TransformPointGoal(self.target_frame, PointStamped(self.source_header, point)))
+        result = tf_client.get_result().result
+        # get_resultのresultのheaderは上書きしないと固定値？
+        result.header.frame_id = self.target_frame
+        result.header.stamp = self.source_header.stamp
+        return result
 
 
 CallbackArgsType = Tuple[ImageMatPublisher, ImageMatPublisher,
@@ -118,7 +117,7 @@ def callback(img_msg: Image, depth_msg: Image,
     # detector should be moved outside callback
     frame_id = depth_msg.header.frame_id
     stamp = depth_msg.header.stamp
-    coords_transformer.prepare("base_link", frame_id, stamp)
+    header = Header(frame_id=frame_id, stamp=stamp)
     try:
         img = bridge.imgmsg_to_cv2(img_msg)
         depth = bridge.imgmsg_to_cv2(depth_msg)
@@ -157,6 +156,7 @@ def callback(img_msg: Image, depth_msg: Image,
             )
 
             # transform from camera to world
+            coords_transformer.set_source_header(header)
             p1_3d_w = coords_transformer.transform_point(p1_3d_c)
             p2_3d_w = coords_transformer.transform_point(p2_3d_c)
             c_3d_w = coords_transformer.transform_point(c_3d_c)
@@ -217,6 +217,9 @@ if __name__ == "__main__":
     depth_topic = depth_topics
     info_topic = info_topic
 
+    tf_client = SimpleActionClient("tf_transform", TransformPointAction)
+    tf_client.wait_for_server()
+
     # depth_topic = instances_topic.replace("color", "aligned_depth_to_color")
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
     # Publishers
@@ -239,7 +242,7 @@ if __name__ == "__main__":
     pose_estimator = PoseEstimator()
     grasp_detector = ParallelGraspDetector(
         frame_size=FRAME_SIZE, unit_angle=15, margin=3, func="min")
-    coords_transformer = CoordinateTransformer()
+    coords_transformer = CoordinateTransformer("base_link", tf_client)
 
     callback_args: CallbackArgsType = (
         monomask_publisher, cndsimg_publisher,

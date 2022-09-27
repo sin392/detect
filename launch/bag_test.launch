@@ -36,6 +36,9 @@
         <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
     </group>
 
+    <!-- action server -->
+    <node name="tf_transform" pkg="detect" type="tf_transform_server.py" />
+
     <node name="instance_segmentation" pkg="detect" type="node_is.py" />
     <node name="generate_grasp" pkg="detect" type="node_gg.py" output="screen" />
 </launch>
