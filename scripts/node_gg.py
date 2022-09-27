@@ -77,19 +77,21 @@ class PoseEstimator:
         return Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
 
 
-class CoordinateTransformer:
-    def __init__(self, target_frame: str, client: SimpleActionClient):
+class TFClient(SimpleActionClient):
+    def __init__(self, target_frame: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.target_frame = target_frame
-        self.client = client
         self.source_header = Header()
 
+        self.wait_for_server()
+
     def set_source_header(self, header: Header):
-        self.sorce_header = header
+        self.source_header = header
 
     def transform_point(self, point: Point) -> PointStamped:
         # 同期的だからServiceで実装してもよかったかも
-        self.client.send_goal_and_wait(TransformPointGoal(self.target_frame, PointStamped(self.source_header, point)))
-        result = tf_client.get_result().result
+        self.send_goal_and_wait(TransformPointGoal(self.target_frame, PointStamped(self.source_header, point)))
+        result = self.get_result().result
         # get_resultのresultのheaderは上書きしないと固定値？
         result.header.frame_id = self.target_frame
         result.header.stamp = self.source_header.stamp
@@ -99,7 +101,7 @@ class CoordinateTransformer:
 CallbackArgsType = Tuple[ImageMatPublisher, ImageMatPublisher,
                          DetectedObjectsPublisher, PointProjector,
                          PoseEstimator, ParallelGraspDetector,
-                         CoordinateTransformer]
+                         TFClient]
 
 
 def callback(img_msg: Image, depth_msg: Image,
@@ -112,7 +114,7 @@ def callback(img_msg: Image, depth_msg: Image,
     projector = callback_args[3]
     pose_estimator = callback_args[4]
     grasp_detector = callback_args[5]
-    coords_transformer = callback_args[6]
+    tf_client = callback_args[6]
 
     # detector should be moved outside callback
     frame_id = depth_msg.header.frame_id
@@ -156,10 +158,10 @@ def callback(img_msg: Image, depth_msg: Image,
             )
 
             # transform from camera to world
-            coords_transformer.set_source_header(header)
-            p1_3d_w = coords_transformer.transform_point(p1_3d_c)
-            p2_3d_w = coords_transformer.transform_point(p2_3d_c)
-            c_3d_w = coords_transformer.transform_point(c_3d_c)
+            tf_client.set_source_header(header)
+            p1_3d_w = tf_client.transform_point(p1_3d_c)
+            p2_3d_w = tf_client.transform_point(p2_3d_c)
+            c_3d_w = tf_client.transform_point(c_3d_c)
 
             c_orientation = pose_estimator.get_orientation(depth, mask)
 
@@ -217,8 +219,7 @@ if __name__ == "__main__":
     depth_topic = depth_topics
     info_topic = info_topic
 
-    tf_client = SimpleActionClient("tf_transform", TransformPointAction)
-    tf_client.wait_for_server()
+    tf_client = TFClient("base_link", "tf_transform", TransformPointAction)
 
     # depth_topic = instances_topic.replace("color", "aligned_depth_to_color")
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
@@ -242,12 +243,11 @@ if __name__ == "__main__":
     pose_estimator = PoseEstimator()
     grasp_detector = ParallelGraspDetector(
         frame_size=FRAME_SIZE, unit_angle=15, margin=3, func="min")
-    coords_transformer = CoordinateTransformer("base_link", tf_client)
 
     callback_args: CallbackArgsType = (
         monomask_publisher, cndsimg_publisher,
         objects_publisher, projector, pose_estimator,
-        grasp_detector, coords_transformer)
+        grasp_detector, tf_client)
     ts = mf.ApproximateTimeSynchronizer(subscribers, 10, delay)
     ts.registerCallback(callback, callback_args)
 
