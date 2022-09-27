@@ -73,7 +73,7 @@ if __name__ == "__main__":
         p.joinpath("outputs/2022_08_04_07_40/model_final.pth")))
     device = rospy.get_param("device", "cuda:0")
     image_topics = rospy.get_param(
-        "image_topic", "/body_camera/color/image_raw")
+        "image_topic", "/myrobot/body_camera/color/image_raw")
 
     cfg = get_cfg()
     cfg.merge_from_file(config_path)

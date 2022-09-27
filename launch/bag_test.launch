@@ -1,12 +1,13 @@
 <launch>
-    <arg name="fps" default="10" />
+    <arg name="fps" default="30" />
     <arg name="device" default="cuda:0" />
     <arg name="use_bag" default="true" />
-    <arg name="bag" default="$(find detect)/outputs/bags/robot.bag" />
-    <arg name="image_topic" default="/body_camera/color/image_raw" />
-    <arg name="depth_topic" default="/body_camera/aligned_depth_to_color/image_raw" />
-    <arg name="image_info_topic" default="/body_camera/aligned_depth_to_color/camera_info" />
-    <arg name="depth_info_topic" default="/body_camera/aligned_depth_to_color/camera_info" />
+    <arg name="bag" default="$(find detect)/outputs/bags/robot_20.bag" />
+    <arg name="robot_name" default="myrobot" />
+    <arg name="image_topic" default="/$(arg robot_name)/body_camera/color/image_raw" />
+    <arg name="depth_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/image_raw" />
+    <arg name="image_info_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/camera_info" />
+    <arg name="depth_info_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/camera_info" />
 
 
     <!-- for realsense-viewer bags -->
@@ -20,10 +21,15 @@
     <param name="use_sim_time" value="true" />
     <param name="fps" value="$(arg fps)" />
     <param name="device" value="$(arg device)" />
+    <param name="robot_name" value="$(arg robot_name)" />
+    <param name="image_topic" value="$(arg image_topic)" />
+    <param name="depth_topic" value="$(arg depth_topic)" />
+    <param name="image_info_topic" value="$(arg image_info_topic)" />
+    <param name="depth_info_topic" value="$(arg depth_info_topic)" />
 
     <!-- <node name="raw_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw" /> -->
-    <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/aligned_depth_to_color/image_raw" />
-    <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw/seg" />
+    <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg depth_topic)" />
+    <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="/myrobot/body_camera/color/image_raw/seg" />
     <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="/candidates_img" />
 
     <group if="$(arg use_bag)">
@@ -31,5 +37,5 @@
     </group>
 
     <node name="instance_segmentation" pkg="detect" type="node_is.py" />
-    <node name="generate_grasp" pkg="detect" type="node_gg.py" output="screen"/>
+    <node name="generate_grasp" pkg="detect" type="node_gg.py" output="screen" />
 </launch>

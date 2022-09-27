@@ -118,7 +118,7 @@ def callback(img_msg: Image, depth_msg: Image,
     # detector should be moved outside callback
     frame_id = depth_msg.header.frame_id
     stamp = depth_msg.header.stamp
-    coords_transformer.prepare("world", frame_id, stamp)
+    coords_transformer.prepare("base_link", frame_id, stamp)
     try:
         img = bridge.imgmsg_to_cv2(img_msg)
         depth = bridge.imgmsg_to_cv2(depth_msg)
@@ -178,7 +178,7 @@ def callback(img_msg: Image, depth_msg: Image,
                 long_radius=long_radius,
             )
 
-        objects_publisher.publish_stack("world", stamp)
+        objects_publisher.publish_stack("base_link", stamp)
 
         # monomask_publisher.publish(monomask, frame_id, stamp)
         # monomask = np.where(indexed_img > 0, 255, 0)[
@@ -197,25 +197,25 @@ if __name__ == "__main__":
     p = Path(f"{user_dir}/catkin_ws/src/detect")
 
     fps = rospy.get_param(
-        "fps", 10.)
+        "fps", 30.)
     image_topics = rospy.get_param(
-        "image_topic", "/body_camera/color/image_raw")
+        "image_topic", "/myrobot/body_camera/color/image_raw")
     # alignedとcolorで時間ずれてそうなので注意
     depth_topics = rospy.get_param(
-        "depth_topic", "/body_camera/aligned_depth_to_color/image_raw")
+        "depth_topic", "/myrobot/body_camera/aligned_depth_to_color/image_raw")
     # depth_topics = rospy.get_param(
-    #     "depth_topic", "/body_camera/depth/image_raw")
+    #     "depth_topic", "/myrobot/body_camera/depth/image_raw")
     instances_topics = rospy.get_param(
-        "instances_topic", "/body_camera/color/image_raw/instances")
-    info_topics = rospy.get_param(
-        "info_topics", "/body_camera/aligned_depth_to_color/camera_info")
+        "instances_topic", "/myrobot/body_camera/color/image_raw/instances")
+    info_topic = rospy.get_param(
+        "depth_info_topic", "/myrobot/body_camera/aligned_depth_to_color/camera_info")
 
     delay = 1 / fps  # * 0.5
     # for instances_topic in instances_topics.split():
     instances_topic = instances_topics
     image_topic = image_topics
     depth_topic = depth_topics
-    info_topic = info_topics
+    info_topic = info_topic
 
     # depth_topic = instances_topic.replace("color", "aligned_depth_to_color")
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
