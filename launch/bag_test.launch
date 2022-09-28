@@ -8,6 +8,9 @@
     <arg name="depth_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/image_raw" />
     <arg name="image_info_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/camera_info" />
     <arg name="depth_info_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/camera_info" />
+    <arg name="instances_topic" default="/$(arg robot_name)/body_camera/color/image_raw/instances" />
+    <arg name="objects_topic" default="/detected_objects" />
+    <arg name="candidates_topic" default="/candidates_objects" />
 
 
     <!-- for realsense-viewer bags -->
@@ -26,11 +29,14 @@
     <param name="depth_topic" value="$(arg depth_topic)" />
     <param name="image_info_topic" value="$(arg image_info_topic)" />
     <param name="depth_info_topic" value="$(arg depth_info_topic)" />
+    <param name="instances_topic" value="$(arg instances_topic)" />
+    <param name="objects_topic" value="$(arg objects_topic)" />
+    <param name="candidates_topic" value="$(arg candidates_topic)" />
 
     <!-- <node name="raw_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw" /> -->
     <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg depth_topic)" />
     <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="/myrobot/body_camera/color/image_raw/seg" />
-    <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="/candidates_img" />
+    <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg candidates_topic)" />
 
     <group if="$(arg use_bag)">
         <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import warnings
 from os.path import expanduser
 from pathlib import Path
 from random import randint
@@ -198,21 +197,16 @@ if __name__ == "__main__":
     user_dir = expanduser("~")
     p = Path(f"{user_dir}/catkin_ws/src/detect")
 
-    fps = rospy.get_param(
-        "fps", 30.)
-    image_topics = rospy.get_param(
-        "image_topic", "/myrobot/body_camera/color/image_raw")
-    # alignedとcolorで時間ずれてそうなので注意
-    depth_topics = rospy.get_param(
-        "depth_topic", "/myrobot/body_camera/aligned_depth_to_color/image_raw")
-    # depth_topics = rospy.get_param(
-    #     "depth_topic", "/myrobot/body_camera/depth/image_raw")
-    instances_topics = rospy.get_param(
-        "instances_topic", "/myrobot/body_camera/color/image_raw/instances")
-    info_topic = rospy.get_param(
-        "depth_info_topic", "/myrobot/body_camera/aligned_depth_to_color/camera_info")
-
+    fps = rospy.get_param("fps")
     delay = 1 / fps  # * 0.5
+
+    image_topics = rospy.get_param("image_topic")
+    # alignedとcolorで時間ずれてそうなので注意
+    depth_topics = rospy.get_param("depth_topic")
+    # depth_topics = rospy.get_param("depth_topic")
+    instances_topics = rospy.get_param("instances_topic")
+    info_topic = rospy.get_param("depth_info_topic")
+
     # for instances_topic in instances_topics.split():
     instances_topic = instances_topics
     image_topic = image_topics
