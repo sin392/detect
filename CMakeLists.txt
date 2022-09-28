@@ -60,6 +60,8 @@ add_message_files(
   DetectedObject.msg
   DetectedObjects.msg
   DetectedObjectsStamped.msg
+  Candidate.msg
+  Candidates.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -73,6 +75,7 @@ add_message_files(
 add_action_files(
   FILES
   TransformPoint.action
+  VisualizeCandidates.action
 )
 
 #Generate added messages and services with any dependencies listed here

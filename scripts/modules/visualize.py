@@ -7,10 +7,15 @@ def draw_bbox(img, box, color=(0, 255, 0), **kwargs):
     return img
 
 
-def draw_candidates(img, candidates, color=(0, 0, 255), targer_color=(255, 0, 0), target_index=None, **kwargs):
+def draw_candidate(img, p1, p2, color=(0, 0, 255), targer_color=(255, 0, 0), is_target=False, **kwargs):
+    img = cv2.line(img, p1, p2, targer_color if is_target else color, **kwargs)
+    return img
+
+
+def draw_candidates(img, candidates, target_index=None, **kwargs):
     for i, (p1, p2) in enumerate(candidates):
-        img = cv2.line(img, p1, p2, targer_color if i ==
-                       target_index else color, **kwargs)
+        is_target = i == target_index
+        img = draw_candidate(img, p1, p2, is_target, **kwargs)
     return img
 
 

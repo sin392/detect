@@ -1,4 +1,5 @@
 import numpy as np
+from detect.msg import Candidate, RotatedBoundingBox
 from std_msgs.msg import MultiArrayDimension
 
 
@@ -18,3 +19,13 @@ def multiarray2numpy(pytype, dtype, multiarray):
     dims = [x.size for x in multiarray.layout.dim]
     res = np.array(multiarray.data, dtype=pytype).reshape(dims).astype(dtype)
     return res
+
+
+def bboxmsg2list(msg: RotatedBoundingBox):
+    return np.int0([msg.upper_left, msg.upper_right, msg.lower_right, msg.lower_left])
+
+
+def candidatemsg2list(msg: Candidate):
+    p1 = (msg.p1_u, msg.p1_v)
+    p2 = (msg.p2_u, msg.p2_v)
+    return (p1, p2)
