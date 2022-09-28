@@ -229,7 +229,7 @@ if __name__ == "__main__":
     cndsimg_publisher = ImageMatPublisher(
         "/candidates_img", queue_size=10)
     objects_publisher = DetectedObjectsPublisher(
-        "/detected_objects", DetectedObjectsStamped, queue_size=10)
+        "/detected_objects", queue_size=10)
     # Subscribers
     img_subscriber = mf.Subscriber(image_topic, Image)
     depth_subscriber = mf.Subscriber(depth_topic, Image)
