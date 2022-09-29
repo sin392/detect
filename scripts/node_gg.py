@@ -88,6 +88,11 @@ class TFClient(SimpleActionClient):
         result.header.stamp = self.source_header.stamp
         return result
 
+    def transform_points(self, header: Header, points: List[Point]) -> List[PointStamped]:
+        self.set_source_header(header)
+        result = [self.transform_point(point) for point in points]
+        return result
+
 
 class VisualizeClient(SimpleActionClient):
     def __init__(self, ns="visualize", ActionSpec=VisualizeCandidatesAction):
@@ -140,9 +145,7 @@ def callback(img_msg: Image, depth_msg: Image,
             candidates_list.append(Candidates([Candidate(*p1, *p2) for p1, p2 in candidates], bbox_msg, target_index))
 
             # 3d projection
-            p1, p2 = candidates[target_index]
-            p1_3d_c = projector.pixel_to_3d(*p1[::-1], depth)
-            p2_3d_c = projector.pixel_to_3d(*p2[::-1], depth)
+            p1_3d_c, p2_3d_c = [projector.pixel_to_3d(*point[::-1], depth) for point in candidates[target_index]]
             long_radius = np.linalg.norm(
                 np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) - np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])
             ) / 2
@@ -155,10 +158,7 @@ def callback(img_msg: Image, depth_msg: Image,
             )
 
             # transform from camera to world
-            tf_client.set_source_header(header)
-            p1_3d_w = tf_client.transform_point(p1_3d_c)
-            p2_3d_w = tf_client.transform_point(p2_3d_c)
-            c_3d_w = tf_client.transform_point(c_3d_c)
+            p1_3d_w, p2_3d_w, c_3d_w = tf_client.transform_points(header, (p1_3d_c, p2_3d_c, c_3d_c))
 
             c_orientation = pose_estimator.get_orientation(depth, mask)
 
