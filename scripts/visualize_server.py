@@ -5,7 +5,7 @@ from cv_bridge import CvBridge
 from detect.msg import VisualizeCandidatesAction
 
 from modules.ros.publisher import ImageMatPublisher
-from modules.ros.utils import bboxmsg2list
+from modules.ros.utils import bboxmsg2list, candidatemsg2list
 from modules.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidate
 
 
@@ -28,10 +28,11 @@ class MyServer:
         for cnds_msg in goal.candidates_list:
             bbox = bboxmsg2list(cnds_msg.bbox)
             cnds_img = draw_bbox(cnds_img, bbox)
-            for cnd_msg in cnds_msg.candidates:
-                p1 = (cnd_msg.p1_u, cnd_msg.p1_v)
-                p2 = (cnd_msg.p2_u, cnd_msg.p2_v)
-                cnds_img = draw_candidate(cnds_img, p1, p2, is_target=False)
+            target_index = cnds_msg.target_index
+            for i, cnd_msg in enumerate(cnds_msg.candidates):
+                p1, p2 = candidatemsg2list(cnd_msg)
+                is_target = i == target_index
+                cnds_img = draw_candidate(cnds_img, p1, p2, is_target=is_target)
 
         self.publisher.publish(cnds_img, frame_id, stamp)
 

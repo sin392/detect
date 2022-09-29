@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-from os.path import expanduser
-from pathlib import Path
 from random import randint
 from typing import List, Tuple
 
@@ -10,9 +8,8 @@ import rospy
 from actionlib import SimpleActionClient
 from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, Instance, InstancesStamped,
-                        RotatedBoundingBox, TransformPointAction,
-                        TransformPointGoal, VisualizeCandidatesAction,
-                        VisualizeCandidatesGoal)
+                        TransformPointAction, TransformPointGoal,
+                        VisualizeCandidatesAction, VisualizeCandidatesGoal)
 from geometry_msgs.msg import Point, PointStamped, Pose, Quaternion
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import CameraInfo, Image
@@ -21,11 +18,10 @@ from sklearn.preprocessing import StandardScaler
 from std_msgs.msg import Header
 from tf.transformations import quaternion_from_matrix
 
+from modules.const import FRAME_SIZE
 from modules.grasp import ParallelGraspDetector
 from modules.ros.publisher import DetectedObjectsPublisher
 from modules.ros.utils import bboxmsg2list, multiarray2numpy
-
-FRAME_SIZE = (480, 640)
 
 
 class PointProjector:
@@ -73,8 +69,8 @@ class PoseEstimator:
 
 
 class TFClient(SimpleActionClient):
-    def __init__(self, target_frame: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, target_frame: str, ns="tf_transform", ActionSpec=TransformPointAction):
+        super().__init__(ns, ActionSpec)
         self.target_frame = target_frame
         self.source_header = Header()
 
@@ -94,8 +90,8 @@ class TFClient(SimpleActionClient):
 
 
 class VisualizeClient(SimpleActionClient):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, ns="visualize", ActionSpec=VisualizeCandidatesAction):
+        super().__init__(ns, ActionSpec)
         self.wait_for_server()
 
     def visualize_candidates(self, base_image: Image, candidates_list: List[Candidates]):
@@ -125,7 +121,6 @@ def callback(img_msg: Image, depth_msg: Image,
     try:
         depth = bridge.imgmsg_to_cv2(depth_msg)
 
-        target_indexes = []
         instances: List[Instance] = instances_msg.instances
         candidates_list: List[Candidates] = []
         for instance_msg in instances:
@@ -142,12 +137,10 @@ def callback(img_msg: Image, depth_msg: Image,
 
             # select best candidate
             target_index = randint(0, len(candidates) - 1) if len(candidates) != 0 else 0
-            p1, p2 = candidates[target_index]
-            target_indexes.append(target_index)
-
-            candidates_list.append(Candidates([Candidate(*p1, *p2) for p1, p2 in candidates], bbox_msg))
+            candidates_list.append(Candidates([Candidate(*p1, *p2) for p1, p2 in candidates], bbox_msg, target_index))
 
             # 3d projection
+            p1, p2 = candidates[target_index]
             p1_3d_c = projector.pixel_to_3d(*p1[::-1], depth)
             p2_3d_c = projector.pixel_to_3d(*p2[::-1], depth)
             long_radius = np.linalg.norm(
@@ -190,9 +183,6 @@ def callback(img_msg: Image, depth_msg: Image,
 if __name__ == "__main__":
     rospy.init_node("grasp_candidates_node", log_level=rospy.INFO)
 
-    user_dir = expanduser("~")
-    p = Path(f"{user_dir}/catkin_ws/src/detect")
-
     fps = rospy.get_param("fps")
     delay = 1 / fps  # * 0.5
 
@@ -207,8 +197,8 @@ if __name__ == "__main__":
     depth_topic = depth_topics
     info_topic = info_topic
 
-    tf_client = TFClient("base_link", "tf_transform", TransformPointAction)
-    visualize_client = VisualizeClient("visualize", VisualizeCandidatesAction)
+    tf_client = TFClient("base_link")
+    visualize_client = VisualizeClient()
 
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
     # Publishers
