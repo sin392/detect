@@ -44,15 +44,15 @@ class ParallelCandidate:
             return True
         return False
 
-    def _is_in_mask(self, contour):
+    def _is_in_mask(self):
         """把持点がマスクにかぶっていればスキップ"""
-        if cv2.pointPolygonTest(contour, (self.p1_u, self.p1_v), measureDist=False):
+        if cv2.pointPolygonTest(self.contour, (self.p1_u, self.p1_v), measureDist=False):
             return True
-        if cv2.pointPolygonTest(contour, (self.p2_u, self.p2_v), measureDist=False):
+        if cv2.pointPolygonTest(self.contour, (self.p2_u, self.p2_v), measureDist=False):
             return True
         return False
 
-    def _is_center_above_points(self, center, depth):
+    def _is_center_above_points(self):
         """中心のdepthが把持点のdepthよりも低ければスキップ"""
         return min(self.p1_d, self.p2_d) >= self.pc_d
 
