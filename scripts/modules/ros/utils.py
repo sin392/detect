@@ -13,10 +13,10 @@ class PointProjector:
 
     def pixel_to_3d(self, u, v, d, margin_mm=0) -> Point:
         """
-        ピクセルをカメラ座標系へ３次元投影
+        スクリーン座標系上のピクセル(と対応したdepth)をカメラ座標系へ３次元投影
         ---
-        u,v: ピクセル位置
-        d: u,vにおける深度
+        u,v: ピクセル位置 (スクリーン座標系)
+        d: u,vにおける深度 (この値自体は元々カメラ座標系)
         margin_mm: 物体表面から中心までの距離[mm]
         """
         unit_v = self._get_direction(u, v)
