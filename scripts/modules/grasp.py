@@ -5,7 +5,7 @@ import numpy as np
 
 
 class ParallelCandidate:
-    def __init__(self, p1, p2, pc, depth, h, w, contour, finger_radius=1):
+    def __init__(self, p1, p2, pc, depth, h, w, contour, finger_radius):
         # TODO: フィルタリングに関しては1点のdepthではなく半径finger_radius内の領域のdepthの平均をとるべきかも
         self.h = h
         self.w = w
@@ -77,10 +77,11 @@ class ParallelCandidate:
 
 
 class ParallelGraspDetector:
-    def __init__(self, frame_size: Tuple[int, int], unit_angle=15, margin=3):
+    def __init__(self, frame_size: Tuple[int, int], unit_angle=15, margin=3, finger_radius=1):
         self.h, self.w = frame_size
         self.unit_angle = unit_angle
         self.margin = margin
+        self.finger_radius = finger_radius
         cos, sin = np.cos(np.radians(unit_angle)), np.sin(
             np.radians(unit_angle))
         self.rmat = np.array([[cos, -sin], [sin, cos]])
@@ -92,7 +93,7 @@ class ParallelGraspDetector:
         # best_candidate = None
         for i in range(180 // self.unit_angle):
             v = np.dot(v, self.rmat)  # 回転ベクトルの更新
-            cnd = ParallelCandidate(center + v, center - v, center, depth, self.h, self.w, contour)
+            cnd = ParallelCandidate(center + v, center - v, center, depth, self.h, self.w, contour, self.finger_radius)
 
             if filter and not cnd.is_valid:
                 continue
