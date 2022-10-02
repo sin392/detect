@@ -14,9 +14,9 @@ from std_msgs.msg import Header
 from modules.const import FRAME_SIZE
 from modules.grasp import ParallelGraspDetector
 from modules.ros.action_client import TFClient, VisualizeClient
+from modules.ros.msg import RotatedBoundingBox
 from modules.ros.publisher import DetectedObjectsPublisher
-from modules.ros.utils import (PointProjector, PoseEstimator, bboxmsg2list,
-                               multiarray2numpy)
+from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
 
 CallbackArgsType = Tuple[CvBridge,
                          DetectedObjectsPublisher, PointProjector,
@@ -40,12 +40,11 @@ def callback(img_msg: Image, depth_msg: Image,
     header = Header(frame_id=frame_id, stamp=stamp)
     try:
         depth = bridge.imgmsg_to_cv2(depth_msg)
-
         instances: List[Instance] = instances_msg.instances
         for instance_msg in instances:
             center = instance_msg.center
             bbox_msg = instance_msg.bbox
-            bbox = bboxmsg2list(bbox_msg)
+            bbox = RotatedBoundingBox.tolist(bbox_msg)
             contour = multiarray2numpy(int, np.int32, instance_msg.contour)
             mask = bridge.imgmsg_to_cv2(instance_msg.mask)
 
