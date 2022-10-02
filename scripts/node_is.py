@@ -5,34 +5,14 @@ from typing import Union
 
 import rospy
 from cv_bridge import CvBridge
-from detect.msg import Instance as RawInstance
-from detect.msg import RotatedBoundingBox
 from detectron2.config import get_cfg
 from sensor_msgs.msg import Image
-from std_msgs.msg import Int32MultiArray
 
-from entities.predictor import Predictor, PredictResult
+from entities.predictor import Predictor
+from modules.ros.msg import Instance
 from modules.ros.publisher import ImageMatPublisher, InstancesPublisher
-from modules.ros.utils import numpy2multiarray
 
 bridge = CvBridge()
-
-
-class Instance(RawInstance):
-    global bridge
-
-    @classmethod
-    def from_instances(cls, instances: PredictResult, index: int):
-        return Instance(
-            label=str(instances.labels[index]),
-            score=instances.scores[index],
-            bbox=RotatedBoundingBox(*instances.bboxes[index]),
-            center=instances.centers[index],
-            area=instances.areas[index],
-            mask=bridge.cv2_to_imgmsg(instances.mask_array[index]),
-            contour=numpy2multiarray(
-                Int32MultiArray, instances.contours[index])
-        )
 
 
 def callback(msg: Image, callback_args: Union[list, tuple]):

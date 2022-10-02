@@ -5,103 +5,18 @@ from typing import List, Tuple
 import message_filters as mf
 import numpy as np
 import rospy
-from actionlib import SimpleActionClient
 from cv_bridge import CvBridge
-from detect.msg import (Candidate, Candidates, Instance, InstancesStamped,
-                        TransformPointAction, TransformPointGoal,
-                        VisualizeCandidatesAction, VisualizeCandidatesGoal)
-from geometry_msgs.msg import Point, PointStamped, Pose, Quaternion
-from image_geometry import PinholeCameraModel
+from detect.msg import Candidate, Candidates, Instance, InstancesStamped
+from geometry_msgs.msg import Pose
 from sensor_msgs.msg import CameraInfo, Image
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 from std_msgs.msg import Header
-from tf.transformations import quaternion_from_matrix
 
 from modules.const import FRAME_SIZE
 from modules.grasp import ParallelGraspDetector
+from modules.ros.action_client import TFClient, VisualizeClient
 from modules.ros.publisher import DetectedObjectsPublisher
-from modules.ros.utils import bboxmsg2list, multiarray2numpy
-
-
-class PointProjector:
-    def __init__(self, cam_info):
-        self.cam_info = cam_info
-
-    def pixel_to_3d(self, u, v, depth, margin_mm=0) -> Point:
-        """
-        ピクセルをカメラ座標系へ３次元投影
-        ---
-        u,v: ピクセル位置
-        depth: 深度画像
-        margin_mm: 物体表面から中心までの距離[mm]
-        """
-        unit_v = self._get_direction(u, v)
-        distance = depth[u, v] / 1000 + margin_mm  # mm to m
-        object_point = Point(*(unit_v * distance))
-        return object_point
-
-    def _get_direction(self, u, v):
-        """カメラ座標系原点から対象点までの方向ベクトルを算出"""
-        cam_model = PinholeCameraModel()
-        cam_model.fromCameraInfo(self.cam_info)
-        vector = np.array(cam_model.projectPixelTo3dRay((u, v)))
-        return vector
-
-
-class PoseEstimator:
-    def __init__(self):
-        self.pca = PCA(n_components=3)
-        self.ss = StandardScaler()
-
-    def get_orientation(self, depth, mask) -> Quaternion:
-        """マスクに重なったデプスからインスタンスの姿勢を算出"""
-        # ここの値あってるか要検証...
-        pts = [(x, y, depth[y, x]) for y, x in zip(*np.where(mask > 0))]
-        self.pca.fit(self.ss.fit_transform(pts))
-        n, t, b = self.pca.components_
-        rmat_44 = np.eye(4)
-        rmat_33 = np.dstack([n, t, b])[0]
-        rmat_44[:3, :3] = rmat_33
-        # 4x4回転行列しか受け入れない罠
-        q = quaternion_from_matrix(rmat_44)
-        return Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
-
-
-class TFClient(SimpleActionClient):
-    def __init__(self, target_frame: str, ns="tf_transform", ActionSpec=TransformPointAction):
-        super().__init__(ns, ActionSpec)
-        self.target_frame = target_frame
-        self.source_header = Header()
-
-        self.wait_for_server()
-
-    def set_source_header(self, header: Header):
-        self.source_header = header
-
-    def transform_point(self, point: Point) -> PointStamped:
-        # 同期的だからServiceで実装してもよかったかも
-        self.send_goal_and_wait(TransformPointGoal(self.target_frame, PointStamped(self.source_header, point)))
-        result = self.get_result().result
-        # get_resultのresultのheaderは上書きしないと固定値？
-        result.header.frame_id = self.target_frame
-        result.header.stamp = self.source_header.stamp
-        return result
-
-    def transform_points(self, header: Header, points: List[Point]) -> List[PointStamped]:
-        self.set_source_header(header)
-        result = [self.transform_point(point) for point in points]
-        return result
-
-
-class VisualizeClient(SimpleActionClient):
-    def __init__(self, ns="visualize", ActionSpec=VisualizeCandidatesAction):
-        super().__init__(ns, ActionSpec)
-        self.wait_for_server()
-
-    def visualize_candidates(self, base_image: Image, candidates_list: List[Candidates]):
-        self.send_goal(VisualizeCandidatesGoal(base_image, candidates_list))
-
+from modules.ros.utils import (PointProjector, PoseEstimator, bboxmsg2list,
+                               multiarray2numpy)
 
 CallbackArgsType = Tuple[CvBridge,
                          DetectedObjectsPublisher, PointProjector,
