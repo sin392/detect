@@ -9,16 +9,16 @@ from modules.ros.publisher import ImageMatPublisher
 from modules.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidate
 
 
-class MyServer:
-    def __init__(self):
+class VisualizeServer:
+    def __init__(self, name: str, pub_topic: str):
+        rospy.init_node(name)
+
         self.bridge = CvBridge()
-        self.pub_topic = rospy.get_param("candidates_topic")
-        self.publisher = ImageMatPublisher(self.pub_topic, queue_size=10)
-        self.server = SimpleActionServer('visualize',
-                                         VisualizeCandidatesAction, self.listener_callback, False)
+        self.publisher = ImageMatPublisher(pub_topic, queue_size=10)
+        self.server = SimpleActionServer(name, VisualizeCandidatesAction, self.callback, False)
         self.server.start()
 
-    def listener_callback(self, goal: VisualizeCandidatesGoal):
+    def callback(self, goal: VisualizeCandidatesGoal):
         img_msg = goal.base_image
         img = self.bridge.imgmsg_to_cv2(img_msg)
         frame_id = img_msg.header.frame_id
@@ -38,7 +38,8 @@ class MyServer:
 
 
 if __name__ == "__main__":
-    rospy.init_node("visualize_server")
-    MyServer()
+    pub_topic = rospy.get_param("candidates_topic")
+
+    VisualizeServer("visualize_server", pub_topic)
 
     rospy.spin()

@@ -12,7 +12,7 @@ from std_msgs.msg import Header
 
 
 class TFClient(SimpleActionClient):
-    def __init__(self, target_frame: str, ns="tf_transform", ActionSpec=TransformPointAction):
+    def __init__(self, target_frame: str, ns="tf_transform_server", ActionSpec=TransformPointAction):
         super().__init__(ns, ActionSpec)
         self.target_frame = target_frame
         self.source_header = Header()
@@ -38,7 +38,7 @@ class TFClient(SimpleActionClient):
 
 
 class VisualizeClient(SimpleActionClient):
-    def __init__(self, ns="visualize", ActionSpec=VisualizeCandidatesAction):
+    def __init__(self, ns="visualize_server", ActionSpec=VisualizeCandidatesAction):
         super().__init__(ns, ActionSpec)
         self.stack = []
         self.wait_for_server()
@@ -58,7 +58,7 @@ class VisualizeClient(SimpleActionClient):
 
 
 class InstanceSegmentationClient(SimpleActionClient):
-    def __init__(self, ns="instance_segmentation", ActionSpec=InstanceSegmentationAction):
+    def __init__(self, ns="instance_segmentation_server", ActionSpec=InstanceSegmentationAction):
         super().__init__(ns, ActionSpec)
         self.wait_for_server()
 

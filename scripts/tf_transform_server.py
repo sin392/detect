@@ -9,16 +9,17 @@ from tf2_geometry_msgs import do_transform_point
 from tf2_ros import Buffer, TransformListener
 
 
-class MyServer:
-    def __init__(self):
+class TFTransformServer:
+    def __init__(self, name: str):
+        rospy.init_node(name)
+
         self.buffer = Buffer()
         self.lisner = TransformListener(self.buffer)
         self.cached_trans = {}
-        self.server = actionlib.SimpleActionServer('tf_transform',
-                                                   TransformPointAction, self.listener_callback, False)
+        self.server = actionlib.SimpleActionServer(name, TransformPointAction, self.callback, False)
         self.server.start()
 
-    def listener_callback(self, goal):
+    def callback(self, goal):
         frame_id = goal.source.header.frame_id
         stamp = goal.source.header.stamp
         point = goal.source.point
@@ -45,12 +46,7 @@ class MyServer:
         return tf_point
 
 
-def main():
-    rospy.init_node("tf_transform_server")
-    MyServer()
+if __name__ == "__main__":
+    TFTransformServer("tf_transform_server")
 
     rospy.spin()
-
-
-if __name__ == "__main__":
-    main()

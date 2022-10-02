@@ -7,28 +7,26 @@ from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (InstanceSegmentationAction, InstanceSegmentationGoal,
                         InstanceSegmentationResult)
-from detectron2.config import get_cfg
+from detectron2.config import CfgNode, get_cfg
 
 from entities.predictor import Predictor
 from modules.ros.msg import Instance
 from modules.ros.publisher import ImageMatPublisher
 
 
-class Myserver:
-    def __init__(self, cfg, instances_topic, image_topic, seg_topic):
-        self.bridge = CvBridge()
-        self.instances_topic = instances_topic
-        self.image_topic = image_topic
-        self.seg_topic = seg_topic
+class InstanceSegmentationServer:
+    def __init__(self, name: str, cfg: CfgNode, seg_topic: str):
+        rospy.init_node(name, log_level=rospy.INFO)
 
+        self.bridge = CvBridge()
         self.predictor = Predictor(cfg)
         self.seg_publisher = ImageMatPublisher(seg_topic, queue_size=10)
 
-        self.server = SimpleActionServer('instance_segmentation',
-                                         InstanceSegmentationAction, self.listener_callback, False)
+        self.server = SimpleActionServer(name, InstanceSegmentationAction, self.callback, False)
         self.server.start()
 
-    def listener_callback(self, goal: InstanceSegmentationGoal):
+    def callback(self, goal: InstanceSegmentationGoal):
+        rospy.loginfo(goal.image.header)
         try:
             img_msg = goal.image
             img = self.bridge.imgmsg_to_cv2(img_msg)
@@ -39,8 +37,7 @@ class Myserver:
             seg = res.draw_instances(img[:, :, ::-1])
             self.seg_publisher.publish(seg, frame_id, stamp)
 
-            instances = [Instance.from_instances(
-                res, i) for i in range(res.num_instances)]
+            instances = [Instance.from_instances(res, i) for i in range(res.num_instances)]
             result = InstanceSegmentationResult(instances)
             self.server.set_succeeded(result)
 
@@ -49,13 +46,9 @@ class Myserver:
 
 
 if __name__ == "__main__":
-    rospy.init_node("instance_segmentaion_server", log_level=rospy.INFO)
-
     user_dir = expanduser("~")
     p = Path(f"{user_dir}/catkin_ws/src/detect")
 
-    image_topic = rospy.get_param("image_topic")
-    instances_topic = rospy.get_param("instances_topic")
     seg_topic = rospy.get_param("seg_topic")
 
     config_path = rospy.get_param("config", str(p.joinpath("resources/configs/config.yaml")))
@@ -68,6 +61,6 @@ if __name__ == "__main__":
     cfg.MODEL.WEIGHTS = weight_path
     cfg.MODEL.DEVICE = device
 
-    Myserver(cfg, image_topic, instances_topic, seg_topic)
+    InstanceSegmentationServer("instance_segmentation_server", cfg, seg_topic)
 
     rospy.spin()
