@@ -42,7 +42,6 @@ def callback(img_msg: Image, depth_msg: Image,
         depth = bridge.imgmsg_to_cv2(depth_msg)
 
         instances: List[Instance] = instances_msg.instances
-        candidates_list: List[Candidates] = []
         for instance_msg in instances:
             center = instance_msg.center
             bbox_msg = instance_msg.bbox
@@ -57,7 +56,7 @@ def callback(img_msg: Image, depth_msg: Image,
 
             # select best candidate
             target_index = randint(0, len(candidates) - 1) if len(candidates) != 0 else 0
-            candidates_list.append(Candidates([Candidate(*p1, *p2) for p1, p2 in candidates], bbox_msg, target_index))
+            visualize_client.push_item(Candidates([Candidate(*p1, *p2) for p1, p2 in candidates], bbox_msg, target_index))
 
             # 3d projection
             p1_3d_c, p2_3d_c = [projector.pixel_to_3d(*point[::-1], depth) for point in candidates[target_index]]
@@ -89,7 +88,7 @@ def callback(img_msg: Image, depth_msg: Image,
             )
 
         objects_publisher.publish_stack("base_link", stamp)
-        visualize_client.visualize_candidates(img_msg, candidates_list)
+        visualize_client.visualize_stacked_candidates(img_msg)
 
     except Exception as err:
         rospy.logerr(err)

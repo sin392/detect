@@ -40,7 +40,7 @@ class DetectedObjectsPublisher(Publisher):
     def __init__(self, name, subscriber_listener=None, tcp_nodelay=False, latch=False, headers=None, queue_size=None):
         super().__init__(name, DetectedObjectsStamped,
                          subscriber_listener, tcp_nodelay, latch, headers, queue_size)
-        self.clear_stack()
+        self.stack = []
 
     def push_item(self, p1: Point, p2: Point, center_pose: Pose, short_radius: float, long_radius: float):
         msg = DetectedObject(

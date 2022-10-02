@@ -38,7 +38,18 @@ class TFClient(SimpleActionClient):
 class VisualizeClient(SimpleActionClient):
     def __init__(self, ns="visualize", ActionSpec=VisualizeCandidatesAction):
         super().__init__(ns, ActionSpec)
+        self.stack = []
         self.wait_for_server()
 
     def visualize_candidates(self, base_image: Image, candidates_list: List[Candidates]):
         self.send_goal(VisualizeCandidatesGoal(base_image, candidates_list))
+
+    def push_item(self, candidates: Candidates):
+        self.stack.append(candidates)
+
+    def visualize_stacked_candidates(self, base_image: Image):
+        self.send_goal(VisualizeCandidatesGoal(base_image, self.stack))
+        self.clear_stack()
+
+    def clear_stack(self):
+        self.stack = []
