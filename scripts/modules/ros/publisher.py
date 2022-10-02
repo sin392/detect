@@ -1,6 +1,6 @@
 from cv_bridge import CvBridge
 from detect.msg import DetectedObject, DetectedObjectsStamped, InstancesStamped
-from geometry_msgs.msg import PointStamped, PoseStamped
+from geometry_msgs.msg import Point, Pose
 from rospy import Publisher, Time
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
@@ -42,13 +42,13 @@ class DetectedObjectsPublisher(Publisher):
                          subscriber_listener, tcp_nodelay, latch, headers, queue_size)
         self.clear_stack()
 
-    def push_item(self, radius: float, height: float, p1: PointStamped, p2: PointStamped, center: PoseStamped):
+    def push_item(self, p1: Point, p2: Point, center_pose: Pose, short_radius: float, long_radius: float):
         msg = DetectedObject(
-            radius=radius,
-            height=height,
             p1=p1,
             p2=p2,
-            center=center
+            center_pose=center_pose,
+            short_radius=short_radius,
+            long_radius=long_radius
         )
         self.stack.append(msg)
 

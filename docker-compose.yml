@@ -25,10 +25,13 @@ services:
       # - XAUTHORITY=/root/.Xauthority
       - ./src:/home/${USER}/catkin_ws/src/detect/src
       - ./msg:/home/${USER}/catkin_ws/src/detect/msg
+      - ./action:/home/${USER}/catkin_ws/src/detect/action
+      - ./launch:/home/${USER}/catkin_ws/src/detect/launch
       - ./scripts:/home/${USER}/catkin_ws/src/detect/scripts
       - ./configs:/home/${USER}/catkin_ws/src/detect/configs
       - ./resources:/home/${USER}/catkin_ws/src/detect/resources
       - ./outputs:/home/${USER}/catkin_ws/src/detect/outputs
+      - ./docs:/home/${USER}/catkin_ws/src/detect/docs
       - ./CMakeLists.txt:/home/${USER}/catkin_ws/src/detect/CMakeLists.txt
       - ./package.xml:/home/${USER}/catkin_ws/src/detect/package.xml
       # - ./:/home/${USER}/catkin_ws/src/detect
