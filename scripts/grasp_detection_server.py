@@ -15,10 +15,10 @@ from std_msgs.msg import Header
 
 from modules.const import FRAME_SIZE
 from modules.grasp import ParallelGraspDetector
-from modules.ros.action_client import (InstanceSegmentationClient, TFClient,
-                                       VisualizeClient)
-from modules.ros.msg import RotatedBoundingBox
-from modules.ros.publisher import DetectedObjectsPublisher
+from modules.ros.action_clients import (InstanceSegmentationClient, TFClient,
+                                        VisualizeClient)
+from modules.ros.msg_handlers import RotatedBoundingBoxHandler
+from modules.ros.publishers import DetectedObjectsPublisher
 from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
 
 
@@ -54,23 +54,31 @@ class GraspDetectionServer:
             instances = self.is_client.predict(img_msg)
             objects: List[DetectedObject] = []
             for instance_msg in instances:
-                center = instance_msg.center
-                bbox_msg = RotatedBoundingBox(instance_msg.bbox)
+                center = np.array(instance_msg.center)
+                bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
                 mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)
 
                 # NOTE: following radiuses are [pixel (float)]
-                short_radius_2d, long_radius_2d = bbox_msg.get_radiuses_on_image_plane()
+                short_radius_2d, long_radius_2d = bbox_handler.get_radiuses_on_image_plane()
                 candidates = self.grasp_detector.detect(center, short_radius_2d, contour, depth, filter=True)
+                rospy.loginfo(candidates)
                 if len(candidates) == 0:
                     continue
 
                 # select best candidate
                 target_index = randint(0, len(candidates) - 1) if len(candidates) != 0 else 0
-                self.visualize_client.push_item(Candidates([Candidate(cnd.p1, cnd.p2) for cnd in candidates], bbox_msg, target_index))
+                best_candidate = candidates[target_index]
+                self.visualize_client.push_item(
+                    Candidates(
+                        [Candidate(cnd.p1_u, cnd.p1_v, cnd.p2_u, cnd.p2_v) for cnd in candidates],
+                        bbox_handler.msg,
+                        target_index
+                    )
+                )
 
                 # 3d projection
-                p1_3d_c, p2_3d_c = [self.projector.pixel_to_3d(*point[::-1], depth) for point in candidates[target_index]]
+                p1_3d_c, p2_3d_c = [self.projector.pixel_to_3d(*pt[::-1], depth) for pt in best_candidate.get_candidate_points_2d()]
                 # NOTE: following radiuses are [mm]
                 long_radius_3d = np.linalg.norm(
                     np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) - np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])

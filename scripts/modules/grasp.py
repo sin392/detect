@@ -5,40 +5,52 @@ import numpy as np
 
 
 class ParallelCandidate:
-    def __init__(self, p1, p2, contour, depth):
+    def __init__(self, p1, p2, pc, depth, h, w, contour):
         # TOFIX: ptにそのままp1, p2をわたすと何故かエラー
-        self.p1 = (int(p1[0].item()), int(p1[1].item()))
-        self.p2 = (int(p2[0].item()), int(p2[1].item()))
+        self.h = h
+        self.w = w
         self.contour = contour
         self.depth = depth
-
+        self.p1_u, self.p1_v, self.p1_d = self._format(p1)
+        self.p2_u, self.p2_v, self.p2_d = self._format(p2)
+        self.pc_u, self.pc_v, self.pc_d = self._format(pc)
         self.is_valid = self.validate()
 
+    def _format(self, pt) -> Tuple[int, int, float]:
+        u = int(pt[0].item())
+        v = int(pt[1].item())
+        d = self.depth[v][u]
+        return (u, v, d)
+
     def validate(self):
-        is_valid = self._is_outside_frame(self.p1, self.p2)
-        # is_valid = is_valid or self._is_in_mask(self.p1, self.p2, contour)
-        # is_valid = is_valid or self._is_center_above_points(self.p1, self.p2, center, depth)
+        is_valid = not self._is_outside_frame()
+        # is_valid = is_valid or not self._is_in_mask(contour)
+        # is_valid = is_valid or not self._is_center_above_points(center, depth)
         return is_valid
 
-    def _is_outside_frame(self, p1, p2) -> bool:
+    def get_candidate_points_2d(self):
+        points = ((self.p1_u, self.p1_v), (self.p2_u, self.p2_v))
+        return points
+
+    def _is_outside_frame(self) -> bool:
         """画面に入らない点はスキップ"""
-        if p1[0] < 0 or p1[1] < 0 or self.h <= p1[1] or self.w <= p1[0]:
+        if self.p1_u < 0 or self.p1_u < 0 or self.h <= self.p1_v or self.w <= self.p1_u:
             return True
-        if p2[0] < 0 or p2[1] < 0 or self.h <= p2[1] or self.w <= p2[0]:
+        if self.p2_u < 0 or self.p2_u < 0 or self.h <= self.p2_v or self.w <= self.p2_u:
             return True
         return False
 
-    def _is_in_mask(self, p1, p2, contour):
+    def _is_in_mask(self, contour):
         """把持点がマスクにかぶっていればスキップ"""
-        if cv2.pointPolygonTest(contour, p1, measureDist=False):
+        if cv2.pointPolygonTest(contour, (self.p1_u, self.p1_v), measureDist=False):
             return True
-        if cv2.pointPolygonTest(contour, p2, measureDist=False):
+        if cv2.pointPolygonTest(contour, (self.p2_u, self.p2_v), measureDist=False):
             return True
         return False
 
-    def _is_center_above_points(self, p1, p2, center, depth):
+    def _is_center_above_points(self, center, depth):
         """中心のdepthが把持点のdepthよりも低ければスキップ"""
-        return min(depth[p1[1]][p1[0]], depth[p2[1]][p2[0]]) >= depth[center[1]][center[0]]
+        return min(self.p1_d, self.p2_d) >= self.pc_d
 
 
 class ParallelGraspDetector:
@@ -57,7 +69,7 @@ class ParallelGraspDetector:
         # best_candidate = None
         for i in range(180 // self.unit_angle):
             v = np.dot(v, self.rmat)  # 回転ベクトルの更新
-            cnd = ParallelCandidate(center + v, center - v, contour, depth)
+            cnd = ParallelCandidate(center + v, center - v, center, depth, self.h, self.w, contour)
 
             if filter and not cnd.is_valid:
                 continue

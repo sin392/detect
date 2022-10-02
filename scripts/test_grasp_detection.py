@@ -4,7 +4,7 @@ import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 
-from modules.ros.action_client import GraspDetectionClient
+from modules.ros.action_clients import GraspDetectionClient
 
 
 class GraspGenerationTestClient:

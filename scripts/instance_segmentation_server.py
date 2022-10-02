@@ -10,8 +10,8 @@ from detect.msg import (InstanceSegmentationAction, InstanceSegmentationGoal,
 from detectron2.config import CfgNode, get_cfg
 
 from entities.predictor import Predictor
-from modules.ros.msg import Instance
-from modules.ros.publisher import ImageMatPublisher
+from modules.ros.msg_handlers import InstanceHandler
+from modules.ros.publishers import ImageMatPublisher
 
 
 class InstanceSegmentationServer:
@@ -36,7 +36,7 @@ class InstanceSegmentationServer:
             seg = res.draw_instances(img[:, :, ::-1])
             self.seg_publisher.publish(seg, frame_id, stamp)
 
-            instances = [Instance.from_instances(res, i) for i in range(res.num_instances)]
+            instances = [InstanceHandler.from_predict_result(res, i) for i in range(res.num_instances)]
             result = InstanceSegmentationResult(instances)
             self.server.set_succeeded(result)
 

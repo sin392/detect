@@ -4,8 +4,8 @@ from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import VisualizeCandidatesAction, VisualizeCandidatesGoal
 
-from modules.ros.msg import Candidate, RotatedBoundingBox
-from modules.ros.publisher import ImageMatPublisher
+from modules.ros.msg_handlers import CandidateHandler, RotatedBoundingBoxHandler
+from modules.ros.publishers import ImageMatPublisher
 from modules.visualize import convert_rgb_to_3dgray, draw_bbox, draw_candidate
 
 
@@ -26,12 +26,12 @@ class VisualizeServer:
 
         cnds_img = convert_rgb_to_3dgray(img)
         for cnds_msg in goal.candidates_list:
-            bbox_msg = RotatedBoundingBox(cnds_msg.bbox)
-            cnds_img = draw_bbox(cnds_img, bbox_msg.tolist())
+            bbox_handler = RotatedBoundingBoxHandler(cnds_msg.bbox)
+            cnds_img = draw_bbox(cnds_img, bbox_handler.tolist())
             target_index = cnds_msg.target_index
-            for i, raw_cnd_msg in enumerate(cnds_msg.candidates):
-                cnd_msg = Candidate(raw_cnd_msg)
-                p1, p2 = cnd_msg.tolist()
+            for i, cnd_msg in enumerate(cnds_msg.candidates):
+                cnd_handler = CandidateHandler(cnd_msg)
+                p1, p2 = cnd_handler.tolist()
                 is_target = i == target_index
                 cnds_img = draw_candidate(cnds_img, p1, p2, is_target=is_target)
 
