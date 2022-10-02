@@ -23,10 +23,11 @@ class ParallelCandidate:
         return (u, v, d)
 
     def validate(self):
-        is_valid = not self._is_outside_frame()
-        # is_valid = is_valid or not self._is_in_mask(contour)
-        # is_valid = is_valid or not self._is_center_above_points(center, depth)
-        return is_valid
+        is_invalid = False
+        is_invalid = is_invalid or self._is_outside_frame()
+        # is_invalid = is_invalid or self._is_in_mask()
+        is_invalid = is_invalid or self._is_center_above_points()
+        return not is_invalid
 
     def get_candidate_points_on_rgbd(self):
         points = ((self.p1_u, self.p1_v, self.p1_d), (self.p2_u, self.p2_v, self.p2_d))
@@ -54,7 +55,7 @@ class ParallelCandidate:
 
     def _is_center_above_points(self):
         """中心のdepthが把持点のdepthよりも低ければスキップ"""
-        return min(self.p1_d, self.p2_d) >= self.pc_d
+        return self.pc_d <= min(self.p1_d, self.p2_d)
 
 
 class ParallelGraspDetector:
