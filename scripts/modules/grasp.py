@@ -4,42 +4,21 @@ import cv2
 import numpy as np
 
 
-class ParallelGraspDetector:
-    def __init__(self, frame_size: Tuple[int, int], unit_angle=15, margin=3, func="min"):
-        self.h, self.w = frame_size
-        self.func = min if func == 'min' else max
-        self.unit_angle = unit_angle
-        self.margin = margin
-        cos, sin = np.cos(np.radians(unit_angle)), np.sin(
-            np.radians(unit_angle))
-        self.rmat = np.array([[cos, -sin], [sin, cos]])
+class ParallelCandidate:
+    def __init__(self, p1, p2, contour, depth):
+        # TOFIX: ptにそのままp1, p2をわたすと何故かエラー
+        self.p1 = (int(p1[0].item()), int(p1[1].item()))
+        self.p2 = (int(p2[0].item()), int(p2[1].item()))
+        self.contour = contour
+        self.depth = depth
 
-    # radiusは外に出したい
-    def detect(self, center, bbox, contour, depth, filter=True) -> List[Tuple[int, int]]:
-        # bbox is (xmin, ymin, xmax, ymax)
-        radius = self.func(np.linalg.norm(bbox[2] - bbox[0]),
-                           np.linalg.norm(bbox[3] - bbox[1])) / 2
-        radius += self.margin
-        v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
+        self.is_valid = self.validate()
 
-        candidates = []
-        for i in range(180 // self.unit_angle):
-            v = np.dot(v, self.rmat)  # 回転ベクトルの更新
-            p1, p2 = center + v, center - v
-            # TOFIX: ptにそのままp1, p2をわたすと何故かエラー
-            p1, p2 = (int(p1[0].item()), int(p1[1].item())
-                      ), (int(p2[0].item()), int(p2[1].item()))
-
-            skip_flg = False
-            if filter:
-                skip_flg = skip_flg or self._is_outside_frame(p1, p2)
-                # skip_flg = skip_flg or self._is_in_mask(p1, p2, contour)
-                # skip_flg = skip_flg or self._is_center_above_points(
-                #     p1, p2, center, depth)
-            if not skip_flg:
-                candidates.append((p1, p2))
-
-        return candidates
+    def validate(self):
+        is_valid = self._is_outside_frame(self.p1, self.p2)
+        # is_valid = is_valid or self._is_in_mask(self.p1, self.p2, contour)
+        # is_valid = is_valid or self._is_center_above_points(self.p1, self.p2, center, depth)
+        return is_valid
 
     def _is_outside_frame(self, p1, p2) -> bool:
         """画面に入らない点はスキップ"""
@@ -60,6 +39,32 @@ class ParallelGraspDetector:
     def _is_center_above_points(self, p1, p2, center, depth):
         """中心のdepthが把持点のdepthよりも低ければスキップ"""
         return min(depth[p1[1]][p1[0]], depth[p2[1]][p2[0]]) >= depth[center[1]][center[0]]
+
+
+class ParallelGraspDetector:
+    def __init__(self, frame_size: Tuple[int, int], unit_angle=15, margin=3):
+        self.h, self.w = frame_size
+        self.unit_angle = unit_angle
+        self.margin = margin
+        cos, sin = np.cos(np.radians(unit_angle)), np.sin(
+            np.radians(unit_angle))
+        self.rmat = np.array([[cos, -sin], [sin, cos]])
+
+    def detect(self, center, radius, contour, depth, filter=True) -> List[ParallelCandidate]:
+        v = np.array([0, -1]) * radius  # 単位ベクトル x (半径 + マージン)
+
+        candidates = []
+        # best_candidate = None
+        for i in range(180 // self.unit_angle):
+            v = np.dot(v, self.rmat)  # 回転ベクトルの更新
+            cnd = ParallelCandidate(center + v, center - v, contour, depth)
+
+            if filter and not cnd.is_valid:
+                continue
+
+            candidates.append(cnd)
+
+        return candidates
 
 
 def generate_candidates_list(indexed_img, unit_angle=15, margin=3, func='min'):

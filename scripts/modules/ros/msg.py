@@ -29,14 +29,21 @@ class Instance(RawInstance):
 
 
 class RotatedBoundingBox(RawRotatedBoundingBox):
-    @classmethod
-    def tolist(cls, msg: RawRotatedBoundingBox) -> Tuple[int, int, int, int]:
-        return np.int0([msg.upper_left, msg.upper_right, msg.lower_right, msg.lower_left])
+    def tolist(self) -> Tuple[int, int, int, int]:
+        return np.int0([self.upper_left, self.upper_right, self.lower_right, self.lower_left])
+
+    def get_radiuses_on_image_plane(self) -> Tuple[float, float]:
+        # ピクセルで表現される平面上の２点間の距離を算出する
+        radius_h = np.linalg.norm((self.upper_left[0] - self.upper_right[0]), (self.upper_left[1] - self.upper_right[1])) / 2
+        radius_v = np.linalg.norm((self.upper_left[0] - self.lower_left[0]), (self.upper_left[1] - self.lower_left[1])) / 2
+        short_radius = min(radius_h, radius_v)
+        long_radius = max(radius_h, radius_v)
+
+        return short_radius, long_radius
 
 
 class Candidate(RawCandidate):
-    @classmethod
-    def tolist(cls, msg: RawCandidate) -> Tuple[int, int]:
-        p1 = (msg.p1_u, msg.p1_v)
-        p2 = (msg.p2_u, msg.p2_v)
+    def tolist(self) -> Tuple[int, int]:
+        p1 = (self.p1_u, self.p1_v)
+        p2 = (self.p2_u, self.p2_v)
         return (p1, p2)

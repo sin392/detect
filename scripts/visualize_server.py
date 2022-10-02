@@ -26,11 +26,12 @@ class VisualizeServer:
 
         cnds_img = convert_rgb_to_3dgray(img)
         for cnds_msg in goal.candidates_list:
-            bbox = RotatedBoundingBox.tolist(cnds_msg.bbox)
-            cnds_img = draw_bbox(cnds_img, bbox)
+            bbox_msg = RotatedBoundingBox(cnds_msg.bbox)
+            cnds_img = draw_bbox(cnds_img, bbox_msg.tolist())
             target_index = cnds_msg.target_index
-            for i, cnd_msg in enumerate(cnds_msg.candidates):
-                p1, p2 = Candidate.tolist(cnd_msg)
+            for i, raw_cnd_msg in enumerate(cnds_msg.candidates):
+                cnd_msg = Candidate(raw_cnd_msg)
+                p1, p2 = cnd_msg.tolist()
                 is_target = i == target_index
                 cnds_img = draw_candidate(cnds_img, p1, p2, is_target=is_target)
 

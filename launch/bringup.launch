@@ -41,6 +41,7 @@
 
     <group if="$(arg use_bag)">
         <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
+        <node name="grasp_detection_test_client" pkg="detect" type="test_grasp_detection.py" output="screen" />
     </group>
 
     <!-- action server -->
@@ -48,6 +49,4 @@
     <node name="visualize_server" pkg="detect" type="visualize_server.py" />
     <node name="instance_segmentation_server" pkg="detect" type="instance_segmentation_server.py" />
     <node name="grasp_detection_server" pkg="detect" type="grasp_detection_server.py" />
-    <!-- test client -->
-    <node name="grasp_detection_test_client" pkg="detect" type="test_grasp_detection.py" output="screen" />
 </launch>
