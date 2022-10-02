@@ -2,7 +2,7 @@
 import rospy
 from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
-from detect.msg import VisualizeCandidatesAction
+from detect.msg import VisualizeCandidatesAction, VisualizeCandidatesGoal
 
 from modules.ros.msg import Candidate, RotatedBoundingBox
 from modules.ros.publisher import ImageMatPublisher
@@ -18,7 +18,7 @@ class MyServer:
                                          VisualizeCandidatesAction, self.listener_callback, False)
         self.server.start()
 
-    def listener_callback(self, goal):
+    def listener_callback(self, goal: VisualizeCandidatesGoal):
         img_msg = goal.base_image
         img = self.bridge.imgmsg_to_cv2(img_msg)
         frame_id = img_msg.header.frame_id
