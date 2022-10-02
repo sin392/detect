@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 from random import randint
-from typing import List, Tuple
+from typing import Tuple
 
 import message_filters as mf
 import numpy as np
 import rospy
 from cv_bridge import CvBridge
-from detect.msg import Candidate, Candidates, Instance, InstancesStamped
+from detect.msg import Candidate, Candidates
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import CameraInfo, Image
 from std_msgs.msg import Header
 
 from modules.const import FRAME_SIZE
 from modules.grasp import ParallelGraspDetector
-from modules.ros.action_client import TFClient, VisualizeClient
+from modules.ros.action_client import (InstanceSegmentationClient, TFClient,
+                                       VisualizeClient)
 from modules.ros.msg import RotatedBoundingBox
 from modules.ros.publisher import DetectedObjectsPublisher
 from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
@@ -21,26 +22,26 @@ from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
 CallbackArgsType = Tuple[CvBridge,
                          DetectedObjectsPublisher, PointProjector,
                          PoseEstimator, ParallelGraspDetector,
-                         TFClient, VisualizeClient]
+                         InstanceSegmentationClient, TFClient, VisualizeClient]
 
 
 def callback(img_msg: Image, depth_msg: Image,
-             instances_msg: InstancesStamped,
              callback_args: CallbackArgsType):
     bridge = callback_args[0]
     objects_publisher = callback_args[1]
     projector = callback_args[2]
     pose_estimator = callback_args[3]
     grasp_detector = callback_args[4]
-    tf_client = callback_args[5]
-    visualize_client = callback_args[6]
+    is_client = callback_args[5]
+    tf_client = callback_args[6]
+    visualize_client = callback_args[7]
 
     frame_id = depth_msg.header.frame_id
     stamp = depth_msg.header.stamp
     header = Header(frame_id=frame_id, stamp=stamp)
     try:
         depth = bridge.imgmsg_to_cv2(depth_msg)
-        instances: List[Instance] = instances_msg.instances
+        instances = is_client.predict(img_msg)
         for instance_msg in instances:
             center = instance_msg.center
             bbox_msg = instance_msg.bbox
@@ -99,29 +100,23 @@ if __name__ == "__main__":
     fps = rospy.get_param("fps")
     delay = 1 / fps  # * 0.5
 
-    image_topics = rospy.get_param("image_topic")
-    depth_topics = rospy.get_param("depth_topic")
-    instances_topics = rospy.get_param("instances_topic")
+    image_topic = rospy.get_param("image_topic")
+    depth_topic = rospy.get_param("depth_topic")
+    instances_topic = rospy.get_param("instances_topic")
+    objs_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("depth_info_topic")
 
-    # for instances_topic in instances_topics.split():
-    instances_topic = instances_topics
-    image_topic = image_topics
-    depth_topic = depth_topics
-    info_topic = info_topic
-
+    is_client = InstanceSegmentationClient()
     tf_client = TFClient("base_link")
     visualize_client = VisualizeClient()
 
     rospy.loginfo(f"sub: {instances_topic}, {depth_topic}")
     # Publishers
-    objects_publisher = DetectedObjectsPublisher(
-        "/detected_objects", queue_size=10)
+    objects_publisher = DetectedObjectsPublisher(objs_topic, queue_size=10)
     # Subscribers
     img_subscriber = mf.Subscriber(image_topic, Image)
     depth_subscriber = mf.Subscriber(depth_topic, Image)
-    instances_subscriber = mf.Subscriber(instances_topic, InstancesStamped)
-    subscribers = [img_subscriber, depth_subscriber, instances_subscriber]
+    subscribers = [img_subscriber, depth_subscriber]
 
     cam_info = rospy.wait_for_message(
         info_topic, CameraInfo, timeout=None)
@@ -134,7 +129,7 @@ if __name__ == "__main__":
 
     callback_args: CallbackArgsType = (
         bridge, objects_publisher, projector, pose_estimator,
-        grasp_detector, tf_client, visualize_client)
+        grasp_detector, is_client, tf_client, visualize_client)
     ts = mf.ApproximateTimeSynchronizer(subscribers, 10, delay)
     ts.registerCallback(callback, callback_args)
 

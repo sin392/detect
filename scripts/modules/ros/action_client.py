@@ -2,8 +2,10 @@
 from typing import List
 
 from actionlib import SimpleActionClient
-from detect.msg import (Candidates, TransformPointAction, TransformPointGoal,
-                        VisualizeCandidatesAction, VisualizeCandidatesGoal)
+from detect.msg import (Candidates, Instance, InstanceSegmentationAction,
+                        InstanceSegmentationGoal, TransformPointAction,
+                        TransformPointGoal, VisualizeCandidatesAction,
+                        VisualizeCandidatesGoal)
 from geometry_msgs.msg import Point, PointStamped
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
@@ -53,3 +55,14 @@ class VisualizeClient(SimpleActionClient):
 
     def clear_stack(self):
         self.stack = []
+
+
+class InstanceSegmentationClient(SimpleActionClient):
+    def __init__(self, ns="instance_segmentation", ActionSpec=InstanceSegmentationAction):
+        super().__init__(ns, ActionSpec)
+        self.wait_for_server()
+
+    def predict(self, image: Image) -> List[Instance]:
+        self.send_goal_and_wait(InstanceSegmentationGoal(image))
+        res = self.get_result().instances
+        return res

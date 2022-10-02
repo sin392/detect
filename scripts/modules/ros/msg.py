@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from typing import Tuple
+
 import numpy as np
 from cv_bridge import CvBridge
 from detect.msg import Candidate as RawCandidate
@@ -28,13 +30,13 @@ class Instance(RawInstance):
 
 class RotatedBoundingBox(RawRotatedBoundingBox):
     @classmethod
-    def tolist(cls, msg: RawRotatedBoundingBox):
+    def tolist(cls, msg: RawRotatedBoundingBox) -> Tuple[int, int, int, int]:
         return np.int0([msg.upper_left, msg.upper_right, msg.lower_right, msg.lower_left])
 
 
 class Candidate(RawCandidate):
     @classmethod
-    def tolist(cls, msg: RawCandidate):
+    def tolist(cls, msg: RawCandidate) -> Tuple[int, int]:
         p1 = (msg.p1_u, msg.p1_v)
         p2 = (msg.p2_u, msg.p2_v)
         return (p1, p2)
