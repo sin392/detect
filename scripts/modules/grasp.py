@@ -19,7 +19,7 @@ class ParallelCandidate:
     def _format(self, pt) -> Tuple[int, int, float]:
         u = int(pt[0].item())
         v = int(pt[1].item())
-        d = self.depth[v][u]
+        d = self.depth[v][u]  # [mm]
         return (u, v, d)
 
     def validate(self):
@@ -28,8 +28,12 @@ class ParallelCandidate:
         # is_valid = is_valid or not self._is_center_above_points(center, depth)
         return is_valid
 
-    def get_candidate_points_2d(self):
-        points = ((self.p1_u, self.p1_v), (self.p2_u, self.p2_v))
+    def get_candidate_points_on_rgbd(self):
+        points = ((self.p1_u, self.p1_v, self.p1_d), (self.p2_u, self.p2_v, self.p2_d))
+        return points
+
+    def get_center_on_rgbd(self):
+        points = (self.pc_u, self.pc_v, self.pc_d)
         return points
 
     def _is_outside_frame(self) -> bool:

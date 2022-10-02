@@ -62,13 +62,12 @@ class GraspDetectionServer:
                 # NOTE: following radiuses are [pixel (float)]
                 short_radius_2d, long_radius_2d = bbox_handler.get_radiuses_on_image_plane()
                 candidates = self.grasp_detector.detect(center, short_radius_2d, contour, depth, filter=True)
-                rospy.loginfo(candidates)
                 if len(candidates) == 0:
                     continue
 
                 # select best candidate
                 target_index = randint(0, len(candidates) - 1) if len(candidates) != 0 else 0
-                best_candidate = candidates[target_index]
+                best_cand = candidates[target_index]
                 self.visualize_client.push_item(
                     Candidates(
                         [Candidate(cnd.p1_u, cnd.p1_v, cnd.p2_u, cnd.p2_v) for cnd in candidates],
@@ -78,7 +77,7 @@ class GraspDetectionServer:
                 )
 
                 # 3d projection
-                p1_3d_c, p2_3d_c = [self.projector.pixel_to_3d(*pt[::-1], depth) for pt in best_candidate.get_candidate_points_2d()]
+                p1_3d_c, p2_3d_c = [self.projector.pixel_to_3d(u, v, d) for u, v, d in best_cand.get_candidate_points_on_rgbd()]
                 # NOTE: following radiuses are [mm]
                 long_radius_3d = np.linalg.norm(
                     np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) - np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])
@@ -86,8 +85,7 @@ class GraspDetectionServer:
                 short_radius_3d = long_radius_3d / 2
 
                 c_3d_c = self.projector.pixel_to_3d(
-                    *center[::-1],
-                    depth,
+                    *best_cand.get_center_on_rgbd(),
                     margin_mm=short_radius_3d  # 中心点は物体表面でなく中心座標を取得したいのでmargin_mmを指定
                 )
 

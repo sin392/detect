@@ -11,16 +11,16 @@ class PointProjector:
     def __init__(self, cam_info):
         self.cam_info = cam_info
 
-    def pixel_to_3d(self, u, v, depth, margin_mm=0) -> Point:
+    def pixel_to_3d(self, u, v, d, margin_mm=0) -> Point:
         """
         ピクセルをカメラ座標系へ３次元投影
         ---
         u,v: ピクセル位置
-        depth: 深度画像
+        d: u,vにおける深度
         margin_mm: 物体表面から中心までの距離[mm]
         """
         unit_v = self._get_direction(u, v)
-        distance = depth[u, v] / 1000 + margin_mm  # mm to m
+        distance = d / 1000 + margin_mm  # mm to m
         object_point = Point(*(unit_v * distance))
         return object_point
 
