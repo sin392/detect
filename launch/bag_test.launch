@@ -22,6 +22,7 @@
     <!-- <remap from="/device_0/sensor_0/Depth_0/info/camera_info" to="/body_camera/depth/camera_info" /> -->
 
     <param name="use_sim_time" value="true" />
+
     <param name="fps" value="$(arg fps)" />
     <param name="device" value="$(arg device)" />
     <param name="robot_name" value="$(arg robot_name)" />
@@ -45,7 +46,8 @@
     <!-- action server -->
     <node name="tf_transform_server" pkg="detect" type="tf_transform_server.py" />
     <node name="visualize_server" pkg="detect" type="visualize_server.py" />
-
     <node name="instance_segmentation_server" pkg="detect" type="instance_segmentation_server.py" />
-    <node name="generate_grasp" pkg="detect" type="node_gg.py" />
+    <node name="grasp_detection_server" pkg="detect" type="grasp_detection_server.py" />
+    <!-- test client -->
+    <node name="grasp_detection_test_client" pkg="detect" type="test_grasp_detection.py" output="screen" />
 </launch>

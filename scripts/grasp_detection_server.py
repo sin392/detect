@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 from random import randint
+from typing import List
 
-import message_filters as mf
 import numpy as np
 import rospy
+from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
-from detect.msg import Candidate, Candidates
+from detect.msg import (Candidate, Candidates, DetectedObject,
+                        GraspDetectionAction, GraspDetectionGoal,
+                        GraspDetectionResult)
 from geometry_msgs.msg import Pose
-from sensor_msgs.msg import CameraInfo, Image
+from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Header
 
 from modules.const import FRAME_SIZE
@@ -19,20 +22,15 @@ from modules.ros.publisher import DetectedObjectsPublisher
 from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
 
 
-class GraspGenerationNode:
-    def __init__(self, name: str, fps: float, image_topic: str, depth_topic: str, objects_topic: str, info_topic: str):
+class GraspDetectionServer:
+    def __init__(self, name: str, objects_topic: str, info_topic: str):
         rospy.init_node(name, log_level=rospy.INFO)
 
-        delay = 1 / fps  # * 0.5
         cam_info = rospy.wait_for_message(
             info_topic, CameraInfo, timeout=None)
 
         # Publishers
         self.objects_publisher = DetectedObjectsPublisher(objects_topic, queue_size=10)
-        # Subscribers
-        img_subscriber = mf.Subscriber(image_topic, Image)
-        depth_subscriber = mf.Subscriber(depth_topic, Image)
-        subscribers = [img_subscriber, depth_subscriber]
         # Action Clients
         self.is_client = InstanceSegmentationClient()
         self.tf_client = TFClient("base_link")
@@ -44,16 +42,19 @@ class GraspGenerationNode:
         self.grasp_detector = ParallelGraspDetector(
             frame_size=FRAME_SIZE, unit_angle=15, margin=3, func="min")
 
-        self.ts = mf.ApproximateTimeSynchronizer(subscribers, 10, delay)
-        self.ts.registerCallback(self.callback)
+        self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
+        self.server.start()
 
-    def callback(self, img_msg: Image, depth_msg: Image):
+    def callback(self, goal: GraspDetectionGoal):
+        img_msg = goal.image
+        depth_msg = goal.depth
         frame_id = depth_msg.header.frame_id
         stamp = depth_msg.header.stamp
         header = Header(frame_id=frame_id, stamp=stamp)
         try:
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
             instances = self.is_client.predict(img_msg)
+            objects: List[DetectedObject] = []
             for instance_msg in instances:
                 center = instance_msg.center
                 bbox_msg = instance_msg.bbox
@@ -88,7 +89,7 @@ class GraspGenerationNode:
 
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
 
-                self.objects_publisher.push_item(
+                objects.append(DetectedObject(
                     p1=p1_3d_w.point,
                     p2=p2_3d_w.point,
                     center_pose=Pose(
@@ -96,30 +97,23 @@ class GraspGenerationNode:
                         orientation=c_orientation
                     ),
                     short_radius=short_radius,
-                    long_radius=long_radius,
-                )
+                    long_radius=long_radius
+                ))
 
-            self.objects_publisher.publish_stack("base_link", stamp)
             self.visualize_client.visualize_stacked_candidates(img_msg)
+            self.server.set_succeeded(GraspDetectionResult(objects))
 
         except Exception as err:
             rospy.logerr(err)
 
 
 if __name__ == "__main__":
-    fps = rospy.get_param("fps")
-    image_topic = rospy.get_param("image_topic")
-    depth_topic = rospy.get_param("depth_topic")
     objects_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("depth_info_topic")
 
-    GraspGenerationNode(
-        "grasp_generation_node",
-        fps=fps,
-        image_topic=image_topic,
-        depth_topic=depth_topic,
+    GraspDetectionServer(
+        "grasp_detection_server",
         objects_topic=objects_topic,
         info_topic=info_topic
     )
-
     rospy.spin()

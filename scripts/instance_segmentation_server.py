@@ -26,7 +26,6 @@ class InstanceSegmentationServer:
         self.server.start()
 
     def callback(self, goal: InstanceSegmentationGoal):
-        rospy.loginfo(goal.image.header)
         try:
             img_msg = goal.image
             img = self.bridge.imgmsg_to_cv2(img_msg)

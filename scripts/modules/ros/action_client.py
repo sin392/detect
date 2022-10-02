@@ -2,10 +2,11 @@
 from typing import List
 
 from actionlib import SimpleActionClient
-from detect.msg import (Candidates, Instance, InstanceSegmentationAction,
-                        InstanceSegmentationGoal, TransformPointAction,
-                        TransformPointGoal, VisualizeCandidatesAction,
-                        VisualizeCandidatesGoal)
+from detect.msg import (Candidates, DetectedObject, GraspDetectionAction,
+                        GraspDetectionGoal, Instance,
+                        InstanceSegmentationAction, InstanceSegmentationGoal,
+                        TransformPointAction, TransformPointGoal,
+                        VisualizeCandidatesAction, VisualizeCandidatesGoal)
 from geometry_msgs.msg import Point, PointStamped
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
@@ -65,4 +66,16 @@ class InstanceSegmentationClient(SimpleActionClient):
     def predict(self, image: Image) -> List[Instance]:
         self.send_goal_and_wait(InstanceSegmentationGoal(image))
         res = self.get_result().instances
+        return res
+
+
+class GraspDetectionClient(SimpleActionClient):
+    def __init__(self, ns="grasp_detection_server", ActionSpec=GraspDetectionAction):
+        super().__init__(ns, ActionSpec)
+        self.stack = []
+        self.wait_for_server()
+
+    def detect(self, image: Image, depth: Image) -> List[DetectedObject]:
+        self.send_goal_and_wait(GraspDetectionGoal(image, depth))
+        res = self.get_result().objects
         return res

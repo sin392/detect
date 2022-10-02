@@ -77,6 +77,7 @@ add_action_files(
   TransformPoint.action
   VisualizeCandidates.action
   InstanceSegmentation.action
+  GraspDetection.action
 )
 
 #Generate added messages and services with any dependencies listed here
