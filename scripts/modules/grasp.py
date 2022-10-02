@@ -1,5 +1,4 @@
 from typing import List, Tuple
-from xmlrpc.client import boolean
 
 import cv2
 import numpy as np
@@ -18,14 +17,13 @@ class ParallelGraspDetector:
     # radiusは外に出したい
     def detect(self, center, bbox, contour, depth, filter=True) -> List[Tuple[int, int]]:
         # bbox is (xmin, ymin, xmax, ymax)
-
-        radius = self.func(np.linalg.norm(bbox[2]-bbox[0]),
-                           np.linalg.norm(bbox[3]-bbox[1])) / 2
+        radius = self.func(np.linalg.norm(bbox[2] - bbox[0]),
+                           np.linalg.norm(bbox[3] - bbox[1])) / 2
         radius += self.margin
-        v = np.array([0, -1])*radius  # 単位ベクトル x 半径
+        v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
 
         candidates = []
-        for i in range(180//self.unit_angle):
+        for i in range(180 // self.unit_angle):
             v = np.dot(v, self.rmat)  # 回転ベクトルの更新
             p1, p2 = center + v, center - v
             # TOFIX: ptにそのままp1, p2をわたすと何故かエラー
@@ -43,7 +41,7 @@ class ParallelGraspDetector:
 
         return candidates
 
-    def _is_outside_frame(self, p1, p2) -> boolean:
+    def _is_outside_frame(self, p1, p2) -> bool:
         """画面に入らない点はスキップ"""
         if p1[0] < 0 or p1[1] < 0 or self.h <= p1[1] or self.w <= p1[0]:
             return True
@@ -82,21 +80,21 @@ def generate_candidates_list(indexed_img, unit_angle=15, margin=3, func='min'):
         # NOTE: 重心算出もっと簡潔な方法ありそう
         mu = cv2.moments(contour)
         center = np.array(
-            [int(mu["m10"]/mu["m00"]), int(mu["m01"]/mu["m00"])])
+            [int(mu["m10"] / mu["m00"]), int(mu["m01"] / mu["m00"])])
         centers.append(center)
         box = np.int0(cv2.boxPoints(cv2.minAreaRect(contour)))
         # bboxの短辺or長辺を半径とする
         func = min if func == 'min' else max
         # box is 左上, 右上, 右下, 左下
-        radius = func(np.linalg.norm(box[0]-box[1]),
-                      np.linalg.norm(box[1]-box[2])) / 2
+        radius = func(np.linalg.norm(box[0] - box[1]),
+                      np.linalg.norm(box[1] - box[2])) / 2
         radius += margin  # margin
         radiuses.append(radius)
-        v = np.array([0, -1])*radius  # 単位ベクトル x 半径
+        v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
         candidates = []
         h, w = indexed_img.shape
 
-        for i in range(180//unit_angle):
+        for i in range(180 // unit_angle):
             v = np.dot(v, rmat)  # 回転ベクトルの更新
             p1, p2 = center + v, center - v
             # TOFIX: ptにそのままp1, p2をわたすと何故かエラー
