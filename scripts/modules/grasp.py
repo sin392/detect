@@ -32,11 +32,12 @@ class ParallelCandidate:
         return not is_invalid
 
     def get_candidate_points_on_rgbd(self):
-        points = ((self.p1_u, self.p1_v, self.p1_d), (self.p2_u, self.p2_v, self.p2_d))
+        points = (((self.p1_u, self.p1_v), self.p1_d),
+                  ((self.p2_u, self.p2_v), self.p2_d))
         return points
 
     def get_center_on_rgbd(self):
-        points = (self.pc_u, self.pc_v, self.pc_d)
+        points = ((self.pc_u, self.pc_v), self.pc_d)
         return points
 
     def _is_outside_frame(self) -> bool:
@@ -57,10 +58,12 @@ class ParallelCandidate:
         """把持点がマスク内部に位置する場合はスキップ"""
         # measureDict=Trueのときpolygonの内側にptが存在する場合正の距離、輪郭上で０、外側で負の距離
         # TODO: marginをfinger_radiusから決定
-        pt1_inner_dist = cv2.pointPolygonTest(self.contour, (self.p1_u, self.p1_v), measureDist=True)
+        pt1_inner_dist = cv2.pointPolygonTest(
+            self.contour, (self.p1_u, self.p1_v), measureDist=True)
         if pt1_inner_dist - margin > 0:
             return True
-        pt2_inner_dist = cv2.pointPolygonTest(self.contour, (self.p2_u, self.p2_v), measureDist=True)
+        pt2_inner_dist = cv2.pointPolygonTest(
+            self.contour, (self.p2_u, self.p2_v), measureDist=True)
         if pt2_inner_dist - margin > 0:
             return True
         return False
@@ -93,7 +96,8 @@ class ParallelGraspDetector:
         # best_candidate = None
         for i in range(180 // self.unit_angle):
             v = np.dot(v, self.rmat)  # 回転ベクトルの更新
-            cnd = ParallelCandidate(center + v, center - v, center, depth, self.h, self.w, contour, self.finger_radius)
+            cnd = ParallelCandidate(
+                center + v, center - v, center, depth, self.h, self.w, contour, self.finger_radius)
 
             if filter and not cnd.is_valid:
                 continue

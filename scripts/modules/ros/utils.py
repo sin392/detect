@@ -11,25 +11,33 @@ class PointProjector:
     def __init__(self, cam_info):
         self.cam_info = cam_info
 
-    def pixel_to_3d(self, u, v, d, margin_mm=0) -> Point:
+    def screen_to_camera(self, uv, d, margin_mm=0) -> Point:
         """
         スクリーン座標系上のピクセル(と対応したdepth)をカメラ座標系へ３次元投影
         ---
-        u,v: ピクセル位置 (スクリーン座標系)
+        uv: ピクセル位置 (スクリーン座標系)
         d: u,vにおける深度 (この値自体は元々カメラ座標系)
         margin_mm: 物体表面から中心までの距離[mm]
         """
-        unit_v = self._get_direction(u, v)
+        unit_v = self._get_direction(uv)  # unit is mm
         distance = d / 1000 + margin_mm  # mm to m
         object_point = Point(*(unit_v * distance))
         return object_point
 
-    def _get_direction(self, u, v):
-        """カメラ座標系原点から対象点までの方向ベクトルを算出"""
+    def _get_direction(self, uv):
+        """カメラ座標系原点から対象点までの3次元単位方向ベクトルを算出"""
         cam_model = PinholeCameraModel()
         cam_model.fromCameraInfo(self.cam_info)
-        vector = np.array(cam_model.projectPixelTo3dRay((u, v)))
+        vector = np.array(cam_model.projectPixelTo3dRay(uv))
         return vector
+
+    def get_length_between_3d_points(self, pt1_3d_c: Point, pt2_3d_c: Point):
+        """カメラ座標系の二点間の長さ[mm]を算出"""
+        pt1_arr = np.array([pt1_3d_c.x, pt1_3d_c.y, pt1_3d_c.z])
+        pt2_arr = np.array([pt2_3d_c.x, pt2_3d_c.y, pt2_3d_c.z])
+        distance = np.linalg.norm(pt1_arr - pt2_arr)
+
+        return distance
 
 
 class PoseEstimator:

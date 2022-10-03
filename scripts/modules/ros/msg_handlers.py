@@ -33,18 +33,18 @@ class RotatedBoundingBoxHandler:
     def tolist(self) -> Tuple[int, int, int, int]:
         return np.int0([self.msg.upper_left, self.msg.upper_right, self.msg.lower_right, self.msg.lower_left])
 
-    def get_radiuses_on_image_plane(self) -> Tuple[float, float]:
-        # ピクセルで表現される平面上の２点間の距離を算出する
+    def get_sides_on_image_plane(self) -> Tuple[float, float]:
+        # bboxの短辺と長辺の長さ[mm]を算出する
         upper_left = np.array(self.msg.upper_left)
         upper_right = np.array(self.msg.upper_right)
         lower_left = np.array(self.msg.lower_left)
 
-        radius_h = np.linalg.norm((upper_left - upper_right)) / 2
-        radius_v = np.linalg.norm((upper_left - lower_left)) / 2
-        short_radius = min(radius_h, radius_v)
-        long_radius = max(radius_h, radius_v)
+        side_h = np.linalg.norm((upper_left - upper_right)) / 2
+        side_v = np.linalg.norm((upper_left - lower_left)) / 2
+        short_side = min(side_h, side_v)
+        long_side = max(side_h, side_v)
 
-        return short_radius, long_radius
+        return short_side, long_side
 
 
 class CandidateHandler:

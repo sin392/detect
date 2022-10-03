@@ -58,9 +58,8 @@ class GraspDetectionServer:
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
                 mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)
 
-                # NOTE: following radiuses are [pixel (float)]
-                short_radius_2d, long_radius_2d = bbox_handler.get_radiuses_on_image_plane()
-                candidates = self.grasp_detector.detect(center, short_radius_2d, contour, depth, filter=True)
+                short_side_px, long_side_px = bbox_handler.get_sides_on_image_plane()
+                candidates = self.grasp_detector.detect(center, short_side_px, contour, depth, filter=True)
                 if len(candidates) == 0:
                     continue
 
@@ -76,20 +75,19 @@ class GraspDetectionServer:
                 )
 
                 # 3d projection
-                p1_3d_c, p2_3d_c = [self.projector.pixel_to_3d(u, v, d) for u, v, d in best_cand.get_candidate_points_on_rgbd()]
+                p1_3d_c, p2_3d_c = [self.projector.screen_to_camera(uv, d) for uv, d in best_cand.get_candidate_points_on_rgbd()]
+                p1_3d_w, p2_3d_w = self.tf_client.transform_points(header, (p1_3d_c, p2_3d_c))
                 # NOTE: following radiuses are [mm]
-                long_radius_3d = np.linalg.norm(
-                    np.array([p1_3d_c.x, p1_3d_c.y, p1_3d_c.z]) - np.array([p2_3d_c.x, p2_3d_c.y, p2_3d_c.z])
-                ) / 2
+                cnd_length = self.projector.get_length_between_3d_points(p1_3d_c, p2_3d_c)
+                # TODO: radiusesはbboxから計算された長辺、短辺から計算されるべき
+                long_radius_3d = cnd_length / 2
                 short_radius_3d = long_radius_3d / 2
-
-                c_3d_c = self.projector.pixel_to_3d(
+                # TODO: depthからmargin_mmを決定
+                c_3d_c = self.projector.screen_to_camera(
                     *best_cand.get_center_on_rgbd(),
                     margin_mm=short_radius_3d  # 中心点は物体表面でなく中心座標を取得したいのでmargin_mmを指定
                 )
-
-                # transform from camera to world
-                p1_3d_w, p2_3d_w, c_3d_w = self.tf_client.transform_points(header, (p1_3d_c, p2_3d_c, c_3d_c))
+                c_3d_w = self.tf_client.transform_point(header, c_3d_c)
 
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
 
