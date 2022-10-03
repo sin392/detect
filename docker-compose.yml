@@ -25,6 +25,7 @@ services:
       # - XAUTHORITY=/root/.Xauthority
       - ./src:/home/${USER}/catkin_ws/src/detect/src
       - ./msg:/home/${USER}/catkin_ws/src/detect/msg
+      - ./srv:/home/${USER}/catkin_ws/src/detect/srv
       - ./action:/home/${USER}/catkin_ws/src/detect/action
       - ./launch:/home/${USER}/catkin_ws/src/detect/launch
       - ./scripts:/home/${USER}/catkin_ws/src/detect/scripts
@@ -41,6 +42,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       # - ROS_IP=detectron2
       - ROS_MASTER_URI=http://${ROS_MASTER_IP:-127.0.0.1}:11311
+      - PYTHONPATH=/home/${USER}/catkin_ws/src/detect/scripts:${PYTHONPATH}
     networks:
       - ros_dev_external
     privileged: true
