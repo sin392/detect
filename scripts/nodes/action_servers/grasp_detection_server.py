@@ -10,23 +10,22 @@ from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionGoal,
                         GraspDetectionResult)
 from geometry_msgs.msg import Pose
-from sensor_msgs.msg import CameraInfo
-from std_msgs.msg import Header
-
-from modules.const import FRAME_SIZE
 from modules.grasp import ParallelGraspDetector
 from modules.ros.action_clients import (InstanceSegmentationClient, TFClient,
                                         VisualizeClient)
 from modules.ros.msg_handlers import RotatedBoundingBoxHandler
 from modules.ros.publishers import DetectedObjectsPublisher
 from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
+from sensor_msgs.msg import CameraInfo
+from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
     def __init__(self, name: str, objects_topic: str, info_topic: str):
         rospy.init_node(name, log_level=rospy.INFO)
 
-        cam_info = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
+        cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
+        frame_size = (cam_info.height, cam_info.width)
 
         # Publishers
         self.objects_publisher = DetectedObjectsPublisher(objects_topic, queue_size=10)
@@ -38,7 +37,7 @@ class GraspDetectionServer:
         self.bridge = CvBridge()
         self.projector = PointProjector(cam_info)
         self.pose_estimator = PoseEstimator()
-        self.grasp_detector = ParallelGraspDetector(frame_size=FRAME_SIZE, unit_angle=15, margin=3)
+        self.grasp_detector = ParallelGraspDetector(frame_size=frame_size, unit_angle=15, margin=3)
 
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
@@ -114,7 +113,7 @@ class GraspDetectionServer:
 
 if __name__ == "__main__":
     objects_topic = rospy.get_param("objects_topic")
-    info_topic = rospy.get_param("depth_info_topic")
+    info_topic = rospy.get_param("image_info_topic")
 
     GraspDetectionServer(
         "grasp_detection_server",
