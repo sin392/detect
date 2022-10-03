@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
-from os.path import expanduser
-from pathlib import Path
 from typing import Union
 
-import cv2
 import message_filters as mf
 import numpy as np
 import rospy
 from cv_bridge import CvBridge
+from modules.image import get_optimal_hist_th
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
-
-from modules.image import get_optimal_hist_th
 
 
 def callback(img_msg: Image, depth_msg: Image, *callback_args: Union[list, tuple]):
@@ -47,21 +43,14 @@ def callback(img_msg: Image, depth_msg: Image, *callback_args: Union[list, tuple
 if __name__ == "__main__":
     rospy.init_node("depth_filter_node", log_level=rospy.INFO)
 
-    user_dir = expanduser("~")
-    p = Path(f"{user_dir}/catkin_ws/src/detect")
-
-    image_topics = rospy.get_param(
-        "image_topic", "/body_camera/color/image_raw")
+    image_topic = rospy.get_param("image_topic")
 
     fps = 10.
     delay = 1 / fps * 0.5
-    # for image_topic in image_topics.split():
-    image_topic = image_topics
 
     # alignedとcolorで時間ずれてそうなので注意
     depth_topic = image_topic.replace("color", "aligned_depth_to_color")
-    publisher = rospy.Publisher(
-        image_topic + "/filtered", Image, queue_size=10)
+    publisher = rospy.Publisher(image_topic + "/filtered", Image, queue_size=10)
     rospy.loginfo(f"sub: {image_topic}, {depth_topic}")
     img_subscriber = mf.Subscriber(image_topic, Image)
     depth_subscriber = mf.Subscriber(depth_topic, Image)

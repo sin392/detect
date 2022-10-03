@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-from os.path import expanduser
-from pathlib import Path
-
 import rospy
 from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (InstanceSegmentationAction, InstanceSegmentationGoal,
                         InstanceSegmentationResult)
 from detectron2.config import CfgNode, get_cfg
-
 from entities.predictor import Predictor
+from modules.const import CONFIGS_PATH, OUTPUTS_PATH
 from modules.ros.msg_handlers import InstanceHandler
 from modules.ros.publishers import ImageMatPublisher
 
@@ -45,14 +42,10 @@ class InstanceSegmentationServer:
 
 
 if __name__ == "__main__":
-    user_dir = expanduser("~")
-    p = Path(f"{user_dir}/catkin_ws/src/detect")
-
     seg_topic = rospy.get_param("seg_topic")
 
-    config_path = rospy.get_param("config", str(p.joinpath("resources/configs/config.yaml")))
-    weight_path = rospy.get_param("weight", str(
-        p.joinpath("outputs/2022_08_04_07_40/model_final.pth")))
+    config_path = rospy.get_param("config", f"{CONFIGS_PATH}/config.yaml")
+    weight_path = rospy.get_param("weight", f"{OUTPUTS_PATH}/2022_08_04_07_40/model_final.pth")
     device = rospy.get_param("device", "cuda:0")
 
     cfg = get_cfg()
