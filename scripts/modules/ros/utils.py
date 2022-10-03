@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import numpy as np
 from geometry_msgs.msg import Point, Quaternion
 from image_geometry import PinholeCameraModel
@@ -31,10 +33,18 @@ class PointProjector:
         vector = np.array(cam_model.projectPixelTo3dRay(uv))
         return vector
 
-    def get_length_between_3d_points(self, pt1_3d_c: Point, pt2_3d_c: Point):
+    def get_length_between_2d_points(self, pt1_2d: Tuple[int, int], pt2_2d: Tuple[int, int]):
+        """スクリーン座標系の二点をカメラ座標系に投影し、二点間の長さ[mm]を算出"""
+        pt1_3d_c = self.screen_to_camera(pt1_2d)
+        pt2_3d_c = self.screen_to_camera(pt2_2d)
+        distance = self.get_length_between_3d_points(pt1_3d_c, pt2_3d_c)
+
+        return distance
+
+    def get_length_between_3d_points(self, pt1_3d: Point, pt2_3d: Point):
         """カメラ座標系の二点間の長さ[mm]を算出"""
-        pt1_arr = np.array([pt1_3d_c.x, pt1_3d_c.y, pt1_3d_c.z])
-        pt2_arr = np.array([pt2_3d_c.x, pt2_3d_c.y, pt2_3d_c.z])
+        pt1_arr = np.array([pt1_3d.x, pt1_3d.y, pt1_3d.z])
+        pt2_arr = np.array([pt2_3d.x, pt2_3d.y, pt2_3d.z])
         distance = np.linalg.norm(pt1_arr - pt2_arr)
 
         return distance
