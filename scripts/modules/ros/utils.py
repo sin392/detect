@@ -13,16 +13,15 @@ class PointProjector:
     def __init__(self, cam_info):
         self.cam_info = cam_info
 
-    def screen_to_camera(self, uv, d, margin_mm=0) -> Point:
+    def screen_to_camera(self, uv, d) -> Point:
         """
         スクリーン座標系上のピクセル(と対応したdepth)をカメラ座標系へ３次元投影
         ---
         uv: ピクセル位置 (スクリーン座標系)
         d: u,vにおける深度 (この値自体は元々カメラ座標系)
-        margin_mm: 物体表面から中心までの距離[mm]
         """
         unit_v = self._get_direction(uv)  # unit is mm
-        distance = d / 1000 + margin_mm  # mm to m
+        distance = d / 1000  # mm to m
         object_point = Point(*(unit_v * distance))
         return object_point
 
