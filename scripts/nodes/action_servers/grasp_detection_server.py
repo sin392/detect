@@ -22,7 +22,7 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, objects_topic: str, info_topic: str):
+    def __init__(self, name: str, objects_topic: str, info_topic: str, enable_depth_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
@@ -32,7 +32,7 @@ class GraspDetectionServer:
         self.objects_publisher = DetectedObjectsPublisher(objects_topic, queue_size=10)
         # Action Clients
         self.is_client = InstanceSegmentationClient()
-        self.cdt_client = ComputeDepthThresholdClient()
+        self.cdt_client = ComputeDepthThresholdClient() if enable_depth_filter else None
         self.tf_client = TFClient("base_link")
         self.visualize_client = VisualizeClient()
         # Others
@@ -53,14 +53,21 @@ class GraspDetectionServer:
         try:
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
             instances = self.is_client.predict(img_msg)
-            opt_depth_th = self.cdt_client.compute(depth_msg, n=30)
+            # TODO: compute n by camera distance
+            opt_depth_th = self.cdt_client.compute(depth_msg, n=30) if self.cdt_client else None
             rospy.loginfo(opt_depth_th)
             objects: List[DetectedObject] = []
             for instance_msg in instances:
+                mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
+                # ignore other than instances are located on top of stacks
+                if opt_depth_th is not None:
+                    masked_depth = depth * mask
+                    if np.min(masked_depth[masked_depth > 0]) > opt_depth_th:
+                        continue
+
                 center = np.array(instance_msg.center)
                 bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
-                mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)
 
                 bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
                 candidates = self.grasp_detector.detect(center, bbox_short_side_px, contour, depth, filter=True)
@@ -111,10 +118,12 @@ class GraspDetectionServer:
 if __name__ == "__main__":
     objects_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("image_info_topic")
+    enable_depth_filter = rospy.get_param("enable_depth_filter")
 
     GraspDetectionServer(
         "grasp_detection_server",
         objects_topic=objects_topic,
-        info_topic=info_topic
+        info_topic=info_topic,
+        enable_depth_filter=enable_depth_filter
     )
     rospy.spin()

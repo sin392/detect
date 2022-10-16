@@ -3,6 +3,7 @@
     <arg name="device" default="cuda:0" />
     <arg name="use_bag" default="true" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot_20.bag" />
+    <arg name="enable_depth_filter" default="true" />
     <arg name="robot_name" default="myrobot" />
     <arg name="image_topic" default="/$(arg robot_name)/body_camera/color/image_raw" />
     <arg name="depth_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/image_raw" />
@@ -25,6 +26,7 @@
 
     <param name="fps" value="$(arg fps)" />
     <param name="device" value="$(arg device)" />
+    <param name="enable_depth_filter" value="$(arg enable_depth_filter)" />
     <param name="robot_name" value="$(arg robot_name)" />
     <param name="image_topic" value="$(arg image_topic)" />
     <param name="depth_topic" value="$(arg depth_topic)" />
@@ -48,6 +50,8 @@
     <node name="tf_transform_server" pkg="detect" type="tf_transform_server.py" />
     <node name="visualize_server" pkg="detect" type="visualize_server.py" />
     <node name="instance_segmentation_server" pkg="detect" type="instance_segmentation_server.py" />
-    <node name="grasp_detection_server" pkg="detect" type="grasp_detection_server.py" />
-    <node name="compute_depth_threshold_server" pkg="detect" type="compute_depth_threshold_server.py" output="screen" />
+    <node name="grasp_detection_server" pkg="detect" type="grasp_detection_server.py" output="screen" />
+    <group if="$(arg enable_depth_filter)">
+        <node name="compute_depth_threshold_server" pkg="detect" type="compute_depth_threshold_server.py" output="screen" />
+    </group>
 </launch>

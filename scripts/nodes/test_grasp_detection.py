@@ -34,7 +34,7 @@ class GraspGenerationTestClient:
 
 
 if __name__ == "__main__":
-    fps = float(rospy.get_param("fps"))
+    fps = rospy.get_param("fps")
     image_topic = rospy.get_param("image_topic")
     depth_topic = rospy.get_param("depth_topic")
 
