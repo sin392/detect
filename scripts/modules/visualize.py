@@ -3,7 +3,7 @@ import numpy as np
 
 
 def draw_bbox(img, box, color=(0, 255, 0), **kwargs):
-    img = cv2.drawContours(img, [np.int0(box)], 0, color, 2, **kwargs)
+    img = cv2.drawContours(img, [np.array(box)], 0, color, 2, **kwargs)
     return img
 
 

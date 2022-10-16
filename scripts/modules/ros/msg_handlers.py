@@ -35,8 +35,8 @@ class RotatedBoundingBoxHandler:
         self.ll = np.array(self.msg.lower_left, dtype=np.int32)
         self.lr = np.array(self.msg.lower_right, dtype=np.int32)
 
-    def tolist(self) -> Tuple[int, int, int, int]:
-        return np.int0([self.msg.upper_left, self.msg.upper_right, self.msg.lower_right, self.msg.lower_left])
+    def tolist(self) -> Tuple[Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int]]:
+        return (self.msg.upper_left, self.msg.upper_right, self.msg.lower_right, self.msg.lower_left)
 
     def get_sides_2d(self) -> Tuple[float, float]:
         """ bboxの短辺と長辺の画像平面上での長さ[pixel]を算出する"""

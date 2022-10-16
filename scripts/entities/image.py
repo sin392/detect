@@ -25,7 +25,7 @@ class IndexedMask(np.ndarray):
     def to_rgb(self):
         img = np.zeros((*self.shape, 3), dtype=np.uint8)
         for i in range(self.n):
-            img[self == i+1] = self.palette[i]
+            img[self == i + 1] = self.palette[i]
         return img
 
 
@@ -52,12 +52,12 @@ class BinaryMask:
 
     def get_center(self):
         mu = cv2.moments(self.contour)
-        center = np.array([int(mu["m10"]/mu["m00"]), int(mu["m01"]/mu["m00"])])
-        return np.int0(center)
+        center = np.array([int(mu["m10"] / mu["m00"]), int(mu["m01"] / mu["m00"])])
+        return np.int0(np.rint(center))
 
     def get_rotated_bbox(self):
         # (upper_left, upper_right, lower_right, lower_left)
-        return np.int0(cv2.boxPoints(cv2.minAreaRect(self.contour)))
+        return np.int0(np.rint(cv2.boxPoints(cv2.minAreaRect(self.contour))))
 
     def get_area(self):
         return cv2.contourArea(self.contour)
