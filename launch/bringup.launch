@@ -49,4 +49,5 @@
     <node name="visualize_server" pkg="detect" type="visualize_server.py" />
     <node name="instance_segmentation_server" pkg="detect" type="instance_segmentation_server.py" />
     <node name="grasp_detection_server" pkg="detect" type="grasp_detection_server.py" />
+    <node name="compute_depth_threshold_server" pkg="detect" type="compute_depth_threshold_server.py" output="screen" />
 </launch>

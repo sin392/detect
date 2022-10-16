@@ -2,9 +2,9 @@
 from typing import List
 
 from actionlib import SimpleActionClient
-from detect.msg import (Candidates, DepthFilterAction, DepthFilterGoal,
-                        DetectedObject, GraspDetectionAction,
-                        GraspDetectionGoal, Instance,
+from detect.msg import (Candidates, ComputeDepthThresholdAction,
+                        ComputeDepthThresholdGoal, DetectedObject,
+                        GraspDetectionAction, GraspDetectionGoal, Instance,
                         InstanceSegmentationAction, InstanceSegmentationGoal,
                         TransformPointAction, TransformPointGoal,
                         VisualizeCandidatesAction, VisualizeCandidatesGoal)
@@ -76,12 +76,12 @@ class GraspDetectionClient(SimpleActionClient):
         return res
 
 
-class DepthFilterClient(SimpleActionClient):
-    def __init__(self, ns="depth_filter_server", ActionSpec=DepthFilterAction):
+class ComputeDepthThresholdClient(SimpleActionClient):
+    def __init__(self, ns="compute_depth_threshold_server", ActionSpec=ComputeDepthThresholdAction):
         super().__init__(ns, ActionSpec)
         self.wait_for_server()
 
-    def execute(self, image: Image, depth: Image) -> Image:
-        self.send_goal_and_wait(DepthFilterGoal(image, depth))
-        res = self.get_result().filtered_rgb
+    def compute(self, depth: Image, n: int) -> int:
+        self.send_goal_and_wait(ComputeDepthThresholdGoal(depth, n))
+        res = self.get_result().threshold
         return res

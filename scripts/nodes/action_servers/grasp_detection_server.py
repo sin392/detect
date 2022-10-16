@@ -11,7 +11,8 @@ from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionResult)
 from geometry_msgs.msg import Point, Pose
 from modules.grasp import ParallelGraspDetector
-from modules.ros.action_clients import (InstanceSegmentationClient, TFClient,
+from modules.ros.action_clients import (ComputeDepthThresholdClient,
+                                        InstanceSegmentationClient, TFClient,
                                         VisualizeClient)
 from modules.ros.msg_handlers import RotatedBoundingBoxHandler
 from modules.ros.publishers import DetectedObjectsPublisher
@@ -31,6 +32,7 @@ class GraspDetectionServer:
         self.objects_publisher = DetectedObjectsPublisher(objects_topic, queue_size=10)
         # Action Clients
         self.is_client = InstanceSegmentationClient()
+        self.cdt_client = ComputeDepthThresholdClient()
         self.tf_client = TFClient("base_link")
         self.visualize_client = VisualizeClient()
         # Others
@@ -51,6 +53,8 @@ class GraspDetectionServer:
         try:
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
             instances = self.is_client.predict(img_msg)
+            opt_depth_th = self.cdt_client.compute(depth_msg, n=30)
+            rospy.loginfo(opt_depth_th)
             objects: List[DetectedObject] = []
             for instance_msg in instances:
                 center = np.array(instance_msg.center)
