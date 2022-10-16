@@ -30,10 +30,10 @@ class RotatedBoundingBoxHandler:
     def __init__(self, msg: RotatedBoundingBox):
         self.msg = msg
 
-        self.ul = np.array(self.msg.upper_left)
-        self.ur = np.array(self.msg.upper_right)
-        self.ll = np.array(self.msg.lower_left)
-        self.lr = np.array(self.msg.lower_right)
+        self.ul = np.array(self.msg.upper_left, dtype=np.int32)
+        self.ur = np.array(self.msg.upper_right, dtype=np.int32)
+        self.ll = np.array(self.msg.lower_left, dtype=np.int32)
+        self.lr = np.array(self.msg.lower_right, dtype=np.int32)
 
     def tolist(self) -> Tuple[int, int, int, int]:
         return np.int0([self.msg.upper_left, self.msg.upper_right, self.msg.lower_right, self.msg.lower_left])
@@ -47,11 +47,13 @@ class RotatedBoundingBoxHandler:
 
         return short_side, long_side
 
-    def get_sides_3d(self, projector: PointProjector):
+    def get_sides_3d(self, projector: PointProjector, depth: np.ndarray) -> Tuple[float, float]:
         """ bboxの短辺と長辺の3次元空間上での長さ[mm]を算出する"""
-        short_side_3d = projector.get_length_between_3d_points(
-            self.ul, self.ur)
-        long_side_3d = projector.get_length_between_3d_points(self.ul, self.ll)
+
+        short_side_3d = projector.get_length_between_2d_points(
+            self.ul, self.ur, depth)
+        long_side_3d = projector.get_length_between_2d_points(
+            self.ul, self.ll, depth)
 
         return short_side_3d, long_side_3d
 

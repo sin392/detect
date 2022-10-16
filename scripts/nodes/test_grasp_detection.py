@@ -2,9 +2,8 @@
 import message_filters as mf
 import rospy
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-
 from modules.ros.action_clients import GraspDetectionClient
+from sensor_msgs.msg import Image
 
 
 class GraspGenerationTestClient:
@@ -35,7 +34,7 @@ class GraspGenerationTestClient:
 
 
 if __name__ == "__main__":
-    fps = rospy.get_param("fps")
+    fps = float(rospy.get_param("fps"))
     image_topic = rospy.get_param("image_topic")
     depth_topic = rospy.get_param("depth_topic")
 

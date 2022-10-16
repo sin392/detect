@@ -79,12 +79,12 @@ class GraspDetectionServer:
                 p1_3d_c, p2_3d_c = [self.projector.screen_to_camera(uv, d) for uv, d in best_cand.get_candidate_points_on_rgbd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(*best_cand.get_center_on_rgbd())
                 length_to_center = max(p1_3d_c.z, p2_3d_c.z) - c_3d_c_on_surface.z
-                c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface + length_to_center)
+                c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
 
                 p1_3d_w, p2_3d_w, c_3d_w = self.tf_client.transform_points(header, (p1_3d_c, p2_3d_c, c_3d_c))
 
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
-                bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector)
+                bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
 
                 objects.append(DetectedObject(
                     p1=p1_3d_w.point,
