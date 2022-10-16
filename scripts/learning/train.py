@@ -29,8 +29,7 @@ os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 class Trainer(DefaultTrainer):
     @classmethod
     def build_evaluator(cls, cfg, dataset_name):
-        return COCOEvaluator(dataset_name, distributed=False,
-                             OUTPUT_dir=cfg.OUTPUT_DIR)
+        return COCOEvaluator(dataset_name, distributed=False, output_dir=cfg.OUTPUT_DIR)
 
 
 trainer = Trainer(cfg)
