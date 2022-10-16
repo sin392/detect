@@ -2,7 +2,8 @@
 from typing import List
 
 from actionlib import SimpleActionClient
-from detect.msg import (Candidates, DetectedObject, GraspDetectionAction,
+from detect.msg import (Candidates, DepthFilterAction, DepthFilterGoal,
+                        DetectedObject, GraspDetectionAction,
                         GraspDetectionGoal, Instance,
                         InstanceSegmentationAction, InstanceSegmentationGoal,
                         TransformPointAction, TransformPointGoal,
@@ -72,4 +73,15 @@ class GraspDetectionClient(SimpleActionClient):
     def detect(self, image: Image, depth: Image) -> List[DetectedObject]:
         self.send_goal_and_wait(GraspDetectionGoal(image, depth))
         res = self.get_result().objects
+        return res
+
+
+class DepthFilterClient(SimpleActionClient):
+    def __init__(self, ns="depth_filter_server", ActionSpec=DepthFilterAction):
+        super().__init__(ns, ActionSpec)
+        self.wait_for_server()
+
+    def execute(self, image: Image, depth: Image) -> Image:
+        self.send_goal_and_wait(DepthFilterGoal(image, depth))
+        res = self.get_result().filtered_rgb
         return res

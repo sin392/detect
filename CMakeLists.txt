@@ -78,6 +78,7 @@ add_action_files(
   VisualizeCandidates.action
   InstanceSegmentation.action
   GraspDetection.action
+  DepthFilter.action
 )
 
 #Generate added messages and services with any dependencies listed here
