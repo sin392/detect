@@ -25,6 +25,7 @@ class ParalellGraspDetectionServer:
     def __init__(self, name: str, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
+        self.enable_candidate_filter = enable_candidate_filter
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
 
@@ -72,7 +73,7 @@ class ParalellGraspDetectionServer:
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
                 bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
-                candidates = self.grasp_detector.detect(center, bbox_short_side_px, contour, depth, filter=enable_candidate_filter)
+                candidates = self.grasp_detector.detect(center, bbox_short_side_px, contour, depth, filter=self.enable_candidate_filter)
                 if len(candidates) == 0:
                     continue
 
