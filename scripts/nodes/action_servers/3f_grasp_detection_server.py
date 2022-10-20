@@ -22,7 +22,7 @@ from std_msgs.msg import Header
 
 
 class TriangleGraspDetectionServer:
-    def __init__(self, name: str, objects_topic: str, info_topic: str, enable_depth_filter: bool):
+    def __init__(self, name: str, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
@@ -72,7 +72,7 @@ class TriangleGraspDetectionServer:
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
                 bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
-                candidates = self.grasp_detector.detect(center, bbox_short_side_px, contour, depth, filter=True)
+                candidates = self.grasp_detector.detect(center, bbox_short_side_px, contour, depth, filter=enable_candidate_filter)
                 if len(candidates) == 0:
                     continue
 
@@ -124,11 +124,13 @@ if __name__ == "__main__":
     objects_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
+    enable_candidate_filter = rospy.get_param("enable_candidate_filter")
 
     TriangleGraspDetectionServer(
         "grasp_detection_server",
         objects_topic=objects_topic,
         info_topic=info_topic,
-        enable_depth_filter=enable_depth_filter
+        enable_depth_filter=enable_depth_filter,
+        enable_candidate_filter=enable_candidate_filter
     )
     rospy.spin()
