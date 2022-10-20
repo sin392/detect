@@ -21,7 +21,7 @@ from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Header
 
 
-class GraspDetectionServer:
+class ParalellGraspDetectionServer:
     def __init__(self, name: str, objects_topic: str, info_topic: str, enable_depth_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
@@ -80,15 +80,15 @@ class GraspDetectionServer:
                 best_cand = candidates[target_index]
                 self.visualize_client.push_item(
                     Candidates(
-                        [Candidate(cnd.p1_u, cnd.p1_v, cnd.p2_u, cnd.p2_v) for cnd in candidates],
+                        [Candidate(*cnd.get_edges_on_rgb()) for cnd in candidates],
                         bbox_handler.msg,
                         target_index
                     )
                 )
 
                 # 3d projection
-                p1_3d_c, p2_3d_c = [self.projector.screen_to_camera(uv, d) for uv, d in best_cand.get_candidate_points_on_rgbd()]
-                c_3d_c_on_surface = self.projector.screen_to_camera(*best_cand.get_center_on_rgbd())
+                p1_3d_c, p2_3d_c = [self.projector.screen_to_camera(uv, d) for uv, d in best_cand.get_edges_on_rgbd()]
+                c_3d_c_on_surface = self.projector.screen_to_camera(center, depth[center[1]][center[0]])
                 length_to_center = max(p1_3d_c.z, p2_3d_c.z) - c_3d_c_on_surface.z
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
 
-    GraspDetectionServer(
+    ParalellGraspDetectionServer(
         "grasp_detection_server",
         objects_topic=objects_topic,
         info_topic=info_topic,

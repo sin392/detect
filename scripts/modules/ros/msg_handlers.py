@@ -3,7 +3,7 @@ from typing import Tuple
 
 import numpy as np
 from cv_bridge import CvBridge
-from detect.msg import Candidate, Instance, RotatedBoundingBox
+from detect.msg import Instance, RotatedBoundingBox
 from entities.predictor import PredictResult
 from modules.ros.utils import PointProjector, numpy2multiarray
 from std_msgs.msg import Int32MultiArray
@@ -56,13 +56,3 @@ class RotatedBoundingBoxHandler:
             self.ul, self.ll, depth)
 
         return short_side_3d, long_side_3d
-
-
-class CandidateHandler:
-    def __init__(self, msg: Candidate):
-        self.msg = msg
-
-    def tolist(self) -> Tuple[int, int]:
-        p1 = (self.msg.p1_u, self.msg.p1_v)
-        p2 = (self.msg.p2_u, self.msg.p2_v)
-        return (p1, p2)
