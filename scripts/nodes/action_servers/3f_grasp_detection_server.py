@@ -8,7 +8,7 @@ from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionGoal,
-                        GraspDetectionResult)
+                        GraspDetectionResult, PointTuple2D)
 from geometry_msgs.msg import Point, Pose
 from modules.grasp import TriangleGraspDetector
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
@@ -54,8 +54,10 @@ class TriangleGraspDetectionServer:
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
             instances = self.is_client.predict(img_msg)
             # TODO: compute n by camera distance
-            opt_depth_th = self.cdt_client.compute(depth_msg, n=30) if self.cdt_client else None
-            rospy.loginfo(opt_depth_th)
+            opt_depth_th = None
+            if self.cdt_client:
+                opt_depth_th = self.cdt_client.compute(depth_msg, n=30)
+                rospy.loginfo(opt_depth_th)
             objects: List[DetectedObject] = []
             for instance_msg in instances:
                 mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
@@ -80,9 +82,10 @@ class TriangleGraspDetectionServer:
                 best_cand = candidates[target_index]
                 self.visualize_client.push_item(
                     Candidates(
-                        [Candidate(*cnd.get_edges_on_rgb()) for cnd in candidates],
-                        bbox_handler.msg,
-                        target_index
+                        candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_edges_on_rgb()]) for cnd in candidates],
+                        bbox=bbox_handler.msg,
+                        center=PointTuple2D(center),
+                        target_index=target_index
                     )
                 )
 

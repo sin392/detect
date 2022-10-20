@@ -27,12 +27,12 @@ class VisualizeServer:
         for cnds_msg in goal.candidates_list:
             bbox_handler = RotatedBoundingBoxHandler(cnds_msg.bbox)
             cnds_img = draw_bbox(cnds_img, bbox_handler.tolist())
+            center_uv = cnds_msg.center.uv
             target_index = cnds_msg.target_index
             for i, cnd_msg in enumerate(cnds_msg.candidates):
-                points = cnd_msg.points
                 is_target = i == target_index
-                print(points[0].uv)
-                cnds_img = draw_candidate(cnds_img, points[0].uv, points[1].uv, is_target=is_target)
+                for pt_msg in cnd_msg.points:
+                    cnds_img = draw_candidate(cnds_img, center_uv, pt_msg.uv, is_target=is_target)
 
         self.publisher.publish(cnds_img, frame_id, stamp)
 
