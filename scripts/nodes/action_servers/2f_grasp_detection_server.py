@@ -103,8 +103,7 @@ class ParalellGraspDetectionServer:
                 bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
 
                 objects.append(DetectedObject(
-                    p1=p1_3d_w.point,
-                    p2=p2_3d_w.point,
+                    points=[p1_3d_w.point, p2_3d_w.point],
                     center_pose=Pose(
                         position=c_3d_w.point,
                         orientation=c_orientation

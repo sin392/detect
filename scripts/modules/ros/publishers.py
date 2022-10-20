@@ -1,3 +1,5 @@
+from typing import List
+
 from cv_bridge import CvBridge
 from detect.msg import DetectedObject, DetectedObjectsStamped, InstancesStamped
 from geometry_msgs.msg import Point, Pose
@@ -42,10 +44,9 @@ class DetectedObjectsPublisher(Publisher):
                          subscriber_listener, tcp_nodelay, latch, headers, queue_size)
         self.stack = []
 
-    def push_item(self, p1: Point, p2: Point, center_pose: Pose, short_radius: float, long_radius: float):
+    def push_item(self, points: List[Point], center_pose: Pose, short_radius: float, long_radius: float):
         msg = DetectedObject(
-            p1=p1,
-            p2=p2,
+            points=points,
             center_pose=center_pose,
             short_radius=short_radius,
             long_radius=long_radius

@@ -103,9 +103,7 @@ class TriangleGraspDetectionServer:
 
                 # TODO: DetectedObjectの３ポイント化
                 objects.append(DetectedObject(
-                    p1=p1_3d_w.point,
-                    p2=p2_3d_w.point,
-                    p3=p3_3d_w.point,
+                    points=[p1_3d_w.point, p2_3d_w.point, p3_3d_w.point],
                     center_pose=Pose(
                         position=c_3d_w.point,
                         orientation=c_orientation
