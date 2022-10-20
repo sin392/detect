@@ -1,2 +1,1 @@
-int32[] p1
-int32[] p2
+detect/PointTuple2D[] points

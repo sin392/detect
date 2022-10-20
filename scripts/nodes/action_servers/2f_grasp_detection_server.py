@@ -8,7 +8,7 @@ from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionGoal,
-                        GraspDetectionResult)
+                        GraspDetectionResult, PointTuple2D)
 from geometry_msgs.msg import Point, Pose
 from modules.grasp import ParallelGraspDetector
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
@@ -80,7 +80,7 @@ class ParalellGraspDetectionServer:
                 best_cand = candidates[target_index]
                 self.visualize_client.push_item(
                     Candidates(
-                        [Candidate(*cnd.get_edges_on_rgb()) for cnd in candidates],
+                        [Candidate([PointTuple2D(pt) for pt in cnd.get_edges_on_rgb()]) for cnd in candidates],
                         bbox_handler.msg,
                         target_index
                     )

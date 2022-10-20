@@ -62,6 +62,7 @@ add_message_files(
   DetectedObjectsStamped.msg
   Candidate.msg
   Candidates.msg
+  PointTuple2D.msg
 )
 
 # Generate services in the 'srv' folder

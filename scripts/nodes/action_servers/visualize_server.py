@@ -29,8 +29,10 @@ class VisualizeServer:
             cnds_img = draw_bbox(cnds_img, bbox_handler.tolist())
             target_index = cnds_msg.target_index
             for i, cnd_msg in enumerate(cnds_msg.candidates):
+                points = cnd_msg.points
                 is_target = i == target_index
-                cnds_img = draw_candidate(cnds_img, cnd_msg.p1, cnd_msg.p2, is_target=is_target)
+                print(points[0].uv)
+                cnds_img = draw_candidate(cnds_img, points[0].uv, points[1].uv, is_target=is_target)
 
         self.publisher.publish(cnds_img, frame_id, stamp)
 
