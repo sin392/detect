@@ -6,7 +6,7 @@ from modules.ros.action_clients import GraspDetectionClient
 from sensor_msgs.msg import Image
 
 
-class GraspGenerationTestClient:
+class GraspDetectionTestClient:
     def __init__(self, name: str, fps: float, image_topic: str, depth_topic: str):
         rospy.init_node(name, log_level=rospy.INFO)
 
@@ -38,8 +38,8 @@ if __name__ == "__main__":
     image_topic = rospy.get_param("image_topic")
     depth_topic = rospy.get_param("depth_topic")
 
-    GraspGenerationTestClient(
-        "grasp_generation_test_client",
+    GraspDetectionTestClient(
+        "grasp_detection_test_client",
         fps=fps,
         image_topic=image_topic,
         depth_topic=depth_topic,
