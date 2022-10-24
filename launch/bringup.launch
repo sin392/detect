@@ -5,7 +5,7 @@
     <arg name="bag" default="$(find detect)/outputs/bags/robot_20.bag" />
     <arg name="enable_depth_filter" default="true" />
     <arg name="enable_candidate_filter" default="true" />
-    <arg name="finger_num" default="3" />
+    <arg name="finger_num" default="4" />
     <arg name="robot_name" default="myrobot" />
     <arg name="image_topic" default="/$(arg robot_name)/body_camera/color/image_raw" />
     <arg name="depth_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/image_raw" />
@@ -54,12 +54,7 @@
     <node name="tf_transform_server" pkg="detect" type="tf_transform_server.py" />
     <node name="visualize_server" pkg="detect" type="visualize_server.py" />
     <node name="instance_segmentation_server" pkg="detect" type="instance_segmentation_server.py" />
-    <group if="$(eval finger_num==2)">
-        <node name="grasp_detection_server" pkg="detect" type="2f_grasp_detection_server.py" output="screen" />
-    </group>
-    <group if="$(eval finger_num==3)">
-        <node name="grasp_detection_server" pkg="detect" type="3f_grasp_detection_server.py" output="screen" />
-    </group>
+    <node name="grasp_detection_server" pkg="detect" type="grasp_detection_server.py" output="screen" />
     <group if="$(arg enable_depth_filter)">
         <node name="compute_depth_threshold_server" pkg="detect" type="compute_depth_threshold_server.py" output="screen" />
     </group>

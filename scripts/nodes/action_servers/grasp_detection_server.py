@@ -10,7 +10,7 @@ from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionGoal,
                         GraspDetectionResult, PointTuple2D)
 from geometry_msgs.msg import Point, Pose
-from modules.grasp import TriangleGraspDetector
+from modules.grasp import GraspDetector
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
                                         InstanceSegmentationClient, TFClient,
                                         VisualizeClient)
@@ -21,10 +21,11 @@ from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Header
 
 
-class TriangleGraspDetectionServer:
-    def __init__(self, name: str, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
+class GraspDetectionServer:
+    def __init__(self, name: str, finger_num: int, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
+        self.finger_num = finger_num
         self.enable_candidate_filter = enable_candidate_filter
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
@@ -40,7 +41,7 @@ class TriangleGraspDetectionServer:
         self.bridge = CvBridge()
         self.projector = PointProjector(cam_info)
         self.pose_estimator = PoseEstimator()
-        self.grasp_detector = TriangleGraspDetector(frame_size=frame_size, unit_angle=15, margin=3)
+        self.grasp_detector = GraspDetector(finger_num=finger_num, frame_size=frame_size, unit_angle=15, margin=3)
 
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
@@ -91,19 +92,21 @@ class TriangleGraspDetectionServer:
                 )
 
                 # 3d projection
-                p1_3d_c, p2_3d_c, p3_3d_c = [self.projector.screen_to_camera(uv, d) for uv, d in best_cand.get_edges_on_rgbd()]
+                points_c = [self.projector.screen_to_camera(uv, d) for uv, d in best_cand.get_edges_on_rgbd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(center, depth[center[1]][center[0]])
-                length_to_center = max(p1_3d_c.z, p2_3d_c.z, p3_3d_c.z) - c_3d_c_on_surface.z
+                length_to_center = max([pt.z for pt in points_c]) - c_3d_c_on_surface.z
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
 
-                p1_3d_w, p2_3d_w, p3_3d_w, c_3d_w = self.tf_client.transform_points(header, (p1_3d_c, p2_3d_c, p3_3d_c, c_3d_c))
+                points_and_center_w = self.tf_client.transform_points(header, (*points_c, c_3d_c))
+                points_w = points_and_center_w[:-1]
+                c_3d_w = points_and_center_w[-1]
 
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
                 bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
 
                 # TODO: DetectedObjectの３ポイント化
                 objects.append(DetectedObject(
-                    points=[p1_3d_w.point, p2_3d_w.point, p3_3d_w.point],
+                    points=[pt.point for pt in points_w],
                     center_pose=Pose(
                         position=c_3d_w.point,
                         orientation=c_orientation
@@ -120,13 +123,15 @@ class TriangleGraspDetectionServer:
 
 
 if __name__ == "__main__":
+    finger_num = rospy.get_param("finger_num")
     objects_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
     enable_candidate_filter = rospy.get_param("enable_candidate_filter")
 
-    TriangleGraspDetectionServer(
+    GraspDetectionServer(
         "grasp_detection_server",
+        finger_num=finger_num,
         objects_topic=objects_topic,
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,

@@ -169,7 +169,7 @@ class Candidate:
         return [edge.get_edge_on_rgbd() for edge in self.edges]
 
 
-class BaseGraspDetector:
+class GraspDetector:
     def __init__(self, frame_size, finger_num, unit_angle=15, margin=3, finger_radius=1):
         self.h, self.w = frame_size
         self.margin = margin
@@ -208,15 +208,3 @@ class BaseGraspDetector:
                 candidates.append(cnd)
 
         return candidates
-
-
-class ParallelGraspDetector(BaseGraspDetector):
-    def __init__(self, frame_size: Tuple[int, int], unit_angle=15, margin=3, finger_radius=1):
-        super().__init__(frame_size=frame_size, finger_num=2,
-                         unit_angle=unit_angle, margin=margin, finger_radius=finger_radius)
-
-
-class TriangleGraspDetector(BaseGraspDetector):
-    def __init__(self, frame_size: Tuple[int, int], unit_angle=15, margin=3, finger_radius=1):
-        super().__init__(frame_size=frame_size, finger_num=3,
-                         unit_angle=unit_angle, margin=margin, finger_radius=finger_radius)
