@@ -155,17 +155,15 @@ class CandidateEdgePoint:
 
 
 class Candidate:
-    def __init__(self, edges: List[CandidateEdgePoint], center: Tuple[int, int]):
+    def __init__(self, edges: List[CandidateEdgePoint], angle: float):
         self.edges = edges
+        self.angle = angle
         self.is_valid = np.all([edge.is_valid for edge in self.edges])
 
     def get_edges_on_rgb(self) -> List[Tuple[int, int]]:
         return [edge.get_edge_on_rgb() for edge in self.edges]
 
     def get_edges_on_rgbd(self) -> List[Tuple[Tuple[int, int], int]]:
-        return [edge.get_edge_on_rgbd() for edge in self.edges]
-
-    def get_center_on_rgbd(self) -> List[Tuple[Tuple[int, int], int]]:
         return [edge.get_edge_on_rgbd() for edge in self.edges]
 
 
@@ -193,7 +191,7 @@ class GraspDetector:
         base_finger_v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
         candidates = []
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
-        for _ in range(self.candidate_num):
+        for i in range(self.candidate_num):
             edges = []
             finger_v = base_finger_v
             for _ in range(self.finger_num):
@@ -202,7 +200,7 @@ class GraspDetector:
                 finger_v = np.dot(finger_v, self.base_rmat)
 
             base_finger_v = np.dot(base_finger_v, self.unit_rmat)
-            cnd = Candidate(edges, center)
+            cnd = Candidate(edges, angle=self.unit_angle * i)
 
             if not filter or cnd.is_valid:
                 candidates.append(cnd)

@@ -9,7 +9,7 @@ from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionGoal,
                         GraspDetectionResult, PointTuple2D)
-from geometry_msgs.msg import Point, Pose
+from geometry_msgs.msg import Point, Pose, PoseStamped
 from modules.grasp import GraspDetector
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
                                         InstanceSegmentationClient, TFClient,
@@ -104,13 +104,16 @@ class GraspDetectionServer:
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
                 bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
 
-                # TODO: DetectedObjectの３ポイント化
                 objects.append(DetectedObject(
                     points=[pt.point for pt in points_w],
-                    center_pose=Pose(
-                        position=c_3d_w.point,
-                        orientation=c_orientation
+                    center_pose=PoseStamped(
+                        Header(frame_id="base_link"),
+                        Pose(
+                            position=c_3d_w.point,
+                            orientation=c_orientation
+                        )
                     ),
+                    angle=best_cand.angle,
                     short_radius=bbox_short_side_3d / 2,
                     long_radius=bbox_long_side_3d / 2
                 ))
