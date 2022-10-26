@@ -115,7 +115,8 @@ class GraspDetectionServer:
                     ),
                     angle=best_cand.angle,
                     short_radius=bbox_short_side_3d / 2,
-                    long_radius=bbox_long_side_3d / 2
+                    long_radius=bbox_long_side_3d / 2,
+                    length_to_center=length_to_center
                 ))
 
             self.visualize_client.visualize_stacked_candidates(img_msg)
