@@ -47,6 +47,7 @@ class GraspDetectionServer:
         self.server.start()
 
     def callback(self, goal: GraspDetectionGoal):
+        print("receive request")
         img_msg = goal.image
         depth_msg = goal.depth
         frame_id = depth_msg.header.frame_id
@@ -80,11 +81,12 @@ class GraspDetectionServer:
 
                 # select best candidate
                 # max_hand_width_px = self.projector.get_length_between_3d_points(p1_3d_c, p2_3d_c)
-                target_index = randint(0, len(candidates) - 1) if len(candidates) != 0 else 0
-                best_cand = candidates[target_index]
+                valid_candidates = [cnd for cnd in candidates if cnd.is_valid]
+                target_index = randint(0, len(valid_candidates) - 1) if len(valid_candidates) != 0 else 0
+                best_cand = valid_candidates[target_index]
                 self.visualize_client.push_item(
                     Candidates(
-                        candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_edges_on_rgb()]) for cnd in candidates],
+                        candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_edges_on_rgb()]) for cnd in valid_candidates],
                         bbox=bbox_handler.msg,
                         center=PointTuple2D(center),
                         target_index=target_index
@@ -113,7 +115,8 @@ class GraspDetectionServer:
                             orientation=c_orientation
                         )
                     ),
-                    angle=best_cand.angle,
+                    # NOTE: unclockwise seen from image plane is positive in cnd.angle, so convert as rotate on z-axis
+                    angle=-best_cand.angle,
                     short_radius=bbox_short_side_3d / 2,
                     long_radius=bbox_long_side_3d / 2,
                     length_to_center=length_to_center
