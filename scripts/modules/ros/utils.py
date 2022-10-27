@@ -11,7 +11,10 @@ from tf.transformations import quaternion_from_matrix
 
 class PointProjector:
     def __init__(self, cam_info):
-        self.cam_info = cam_info
+        self.cam_model = PinholeCameraModel()
+        self.cam_model.fromCameraInfo(cam_info)
+        self.cu = cam_info.P[2]
+        self.cv = cam_info.P[6]
 
     def screen_to_camera(self, uv, d) -> Point:
         """
@@ -20,16 +23,36 @@ class PointProjector:
         uv: ピクセル位置 (スクリーン座標系)
         d: u,vにおける深度 (この値自体は元々カメラ座標系)
         """
-        unit_v = self._get_direction(uv)  # unit is mm
+        # ref: https://news.mynavi.jp/techplus/photo/article/computer_vision-62/images/011l.jpg
         distance = d / 1000  # mm to m
-        object_point = Point(*(unit_v * distance))
+
+        unit_c = np.array([0,0,1]) # 光軸の単位ベクトル
+        unit_x = self._get_direction((uv[0], self.cv))
+        unit_y = self._get_direction((self.cu, uv[1]))
+
+        x = np.tan(self._get_angle_between_vectors(unit_c, unit_x)) * distance
+        y = np.tan(self._get_angle_between_vectors(unit_c, unit_y)) * distance
+        z = distance
+
+        if unit_x[0] < 0:
+            x = -x
+        if unit_y[1] < 0:
+            y = -y
+
+        object_point = Point(x, y, z)
         return object_point
+    
+    def _get_angle_between_vectors(self, u: np.ndarray, v: np.ndarray):
+        """ベクトル間の角度を求める"""
+        i = np.inner(u, v) # 内積
+        n = np.linalg.norm(u) * np.linalg.norm(v) # ノルムの積 (正)
+        c = i / n
+        # return np.rad2deg(np.arccos(np.clip(c, -1.0, 1.0)))
+        return np.arccos(np.clip(c, -1.0, 1.0))
 
     def _get_direction(self, uv):
         """カメラ座標系原点から対象点までの3次元単位方向ベクトルを算出"""
-        cam_model = PinholeCameraModel()
-        cam_model.fromCameraInfo(self.cam_info)
-        vector = np.array(cam_model.projectPixelTo3dRay(uv))
+        vector = np.array(self.cam_model.projectPixelTo3dRay(uv))
         return vector
 
     def get_length_between_2d_points(self, pt1_2d: Tuple[int, int], pt2_2d: Tuple[int, int], depth: np.ndarray):

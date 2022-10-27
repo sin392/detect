@@ -22,10 +22,11 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
+    def __init__(self, name: str, finger_num: int, finger_width_mm: int, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
+        self.finger_width_mm = finger_width_mm # length between center and edge
         self.enable_candidate_filter = enable_candidate_filter
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
@@ -42,6 +43,12 @@ class GraspDetectionServer:
         self.projector = PointProjector(cam_info)
         self.pose_estimator = PoseEstimator()
         self.grasp_detector = GraspDetector(finger_num=finger_num, frame_size=frame_size, unit_angle=15, margin=3)
+
+        # convert unit
+        # ref: https://qiita.com/srs/items/e3412e5b25477b46f3bd
+        flatten_corrected_params = cam_info.P
+        fp_x, fp_y = flatten_corrected_params[0], flatten_corrected_params[5]
+        self.fp = (fp_x + fp_y) / 2
 
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
@@ -71,17 +78,20 @@ class GraspDetectionServer:
                         continue
 
                 center = np.array(instance_msg.center)
+                center_d_mm = depth[center[1]][center[0]]
                 bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
-                bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
-                candidates = self.grasp_detector.detect(center, bbox_short_side_px, contour, depth, filter=self.enable_candidate_filter)
+                # bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
+                finger_width_px = self.finger_width_mm * self.fp * center_d_mm / 1000000
+                candidate_radius = finger_width_px
+                candidates = self.grasp_detector.detect(center, candidate_radius, contour, depth, filter=self.enable_candidate_filter)
                 if len(candidates) == 0:
                     continue
 
                 # select best candidate
                 # max_hand_width_px = self.projector.get_length_between_3d_points(p1_3d_c, p2_3d_c)
-                valid_candidates = [cnd for cnd in candidates if cnd.is_valid]
+                valid_candidates = [cnd for cnd in candidates if cnd.is_valid] if self.enable_candidate_filter else candidates
                 target_index = randint(0, len(valid_candidates) - 1) if len(valid_candidates) != 0 else 0
                 best_cand = valid_candidates[target_index]
                 self.visualize_client.push_item(
@@ -94,8 +104,8 @@ class GraspDetectionServer:
                 )
 
                 # 3d projection
-                points_c = [self.projector.screen_to_camera(uv, d) for uv, d in best_cand.get_edges_on_rgbd()]
-                c_3d_c_on_surface = self.projector.screen_to_camera(center, depth[center[1]][center[0]])
+                points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_edges_on_rgbd()]
+                c_3d_c_on_surface = self.projector.screen_to_camera(center, center_d_mm)
                 length_to_center = max([pt.z for pt in points_c]) - c_3d_c_on_surface.z
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
 
@@ -131,6 +141,7 @@ class GraspDetectionServer:
 
 if __name__ == "__main__":
     finger_num = rospy.get_param("finger_num")
+    finger_width_mm = rospy.get_param("finger_width_mm")
     objects_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
@@ -139,6 +150,7 @@ if __name__ == "__main__":
     GraspDetectionServer(
         "grasp_detection_server",
         finger_num=finger_num,
+        finger_width_mm=finger_width_mm,
         objects_topic=objects_topic,
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,
