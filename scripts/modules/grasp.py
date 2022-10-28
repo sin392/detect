@@ -80,34 +80,40 @@ class ParallelCandidate:
 
 
 class CandidateEdgePoint:
-    def __init__(self, edge: Tuple[float, float], center: Tuple[int, int] = None, h: Optional[int] = None, w: Optional[int] = None, finger_radius: Optional[float] = None, depth: Optional[np.ndarray] = None, contour: Optional[np.ndarray] = None):
+    def __init__(self, edge: Tuple[float, float], center_d: Optional[int] = None, h: Optional[int] = None, w: Optional[int] = None, finger_radius: Optional[float] = None, depth: Optional[np.ndarray] = None, contour: Optional[np.ndarray] = None):
         # TODO: フィルタリングに関しては1点のdepthではなく半径finger_radius内の領域のdepthの平均をとるべきかも
-        self.h = h
-        self.w = w
+        self.center_d = center_d
         self.finger_radius = finger_radius
         self.depth = depth
         self.contour = contour
-        self.depth_is_not_none = type(self.depth) is np.ndarray
-        self.contour_is_not_none = type(self.contour) is np.ndarray
 
-        self.edge_u, self.edge_v, self.edge_d = self._format(edge)  # ndarray
-        self.center_d = self.depth[center[1]][center[0]] \
-            if self.depth_is_not_none and center is not None else None
-        self.is_valid = self.validate()
+        # ピクセル座標の整数化とフレームアウトの補正
+        self.edge_u, is_over_range_u = self.clip_pixel_index(int(round(edge[0])), 0, w - 1)
+        self.edge_v, is_over_range_v = self.clip_pixel_index(int(round(edge[1])), 0, h - 1)
+        self.edge_d = depth[self.edge_v][self.edge_u] if type(depth) is np.ndarray else None
+        is_over_range = is_over_range_u or is_over_range_v
+        # フレームアウトしていたらその時点でinvalid
+        self.is_valid = not is_over_range or self.validate()
 
-    def _format(self, point: Tuple[float, float]) -> Tuple[int, int, int]:
-        u = int(point[0].item())
-        v = int(point[1].item())
-        d = self.depth[v][u] if self.depth is not None else 0  # [mm]
-        return np.int0(np.rint((u, v, d)))
+    def clip_pixel_index(self, raw_value: int, min_value: int, max_value: int) -> Tuple[int, bool]:
+        """画面に入らない点はスキップ"""
+        if raw_value < min_value:
+            value = min_value
+            is_over_range = True
+        elif raw_value > max_value:
+            value = max_value
+            is_over_range = True
+        else:
+            is_over_range = False
+            value = raw_value
+
+        return value, is_over_range
 
     def validate(self):
         is_invalid = False
-        if not (self.h is None or self.w is None):
-            is_invalid = is_invalid or self._is_outside_frame()
-        if self.depth_is_not_none:
+        if self.edge_d:
             is_invalid = is_invalid or self._is_depth_missing()
-        if self.contour_is_not_none:
+        if type(self.contour) is np.ndarray:
             is_invalid = is_invalid or self._is_in_mask()
         if self.center_d is not None:
             is_invalid = is_invalid or self._is_center_under_edges()
@@ -119,11 +125,6 @@ class CandidateEdgePoint:
     def get_edge_on_rgbd(self) -> Tuple[Tuple[int, int], int]:
         return ((self.edge_u, self.edge_v), self.edge_d)
 
-    def _is_outside_frame(self) -> bool:
-        """画面に入らない点はスキップ"""
-        if self.edge_u < 0 or self.edge_u < 0 or self.h <= self.edge_v or self.w <= self.edge_u:
-            return True
-        return False
 
     def _is_depth_missing(self) -> bool:
         """depthが取得できていない(値が0以下)の場合はスキップ"""
@@ -136,8 +137,7 @@ class CandidateEdgePoint:
         # measureDict=Trueのときpolygonの内側にptが存在する場合正の距離、輪郭上で０、外側で負の距離
         # TODO: marginをfinger_radiusから決定
         # ptの要素がnumpy.intだとエラー
-        edge_inner_dist = cv2.pointPolygonTest(
-            self.contour, (self.edge_u.item(), self.edge_v.item()), measureDist=True)
+        edge_inner_dist = cv2.pointPolygonTest(self.contour, (self.edge_u, self.edge_v), measureDist=True)
         # edge_inner_dist = cv2.pointPolygonTest(
         #     self.contour, (self.edge_u, self.edge_v), measureDist=True)
         if edge_inner_dist - margin > 0:
@@ -191,16 +191,17 @@ class GraspDetector:
         base_finger_v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
         candidates = []
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
+        center_d = depth[center[1]][center[0]] if type(depth) is np.ndarray else None
         for i in range(self.candidate_num):
             edges = []
             finger_v = base_finger_v
             for _ in range(self.finger_num):
-                edges.append(CandidateEdgePoint(edge=center + finger_v, center=center, depth=depth,
+                edges.append(CandidateEdgePoint(edge=tuple(center + finger_v), center_d=center_d, depth=depth,
                                                 h=self.h, w=self.w, contour=contour, finger_radius=self.finger_radius))
                 finger_v = np.dot(finger_v, self.base_rmat)
+            cnd = Candidate(edges, angle=self.unit_angle * i)
 
             base_finger_v = np.dot(base_finger_v, self.unit_rmat)
-            cnd = Candidate(edges, angle=self.unit_angle * i)
 
             if not filter or cnd.is_valid:
                 candidates.append(cnd)
