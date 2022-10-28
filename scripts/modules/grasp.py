@@ -155,10 +155,10 @@ class CandidateEdgePoint:
 
 
 class Candidate:
-    def __init__(self, edges: List[CandidateEdgePoint], angle: float):
+    def __init__(self, edges: List[CandidateEdgePoint], angle: float, is_valid: bool):
         self.edges = edges
         self.angle = angle
-        self.is_valid = np.all([edge.is_valid for edge in self.edges])
+        self.is_valid = is_valid
 
     def get_edges_on_rgb(self) -> List[Tuple[int, int]]:
         return [edge.get_edge_on_rgb() for edge in self.edges]
@@ -195,11 +195,14 @@ class GraspDetector:
         for i in range(self.candidate_num):
             edges = []
             finger_v = base_finger_v
+            is_invalid = False
             for _ in range(self.finger_num):
-                edges.append(CandidateEdgePoint(edge=tuple(center + finger_v), center_d=center_d, depth=depth,
-                                                h=self.h, w=self.w, contour=contour, finger_radius=self.finger_radius))
+                cdp = CandidateEdgePoint(edge=tuple(center + finger_v), center_d=center_d, depth=depth,
+                                         h=self.h, w=self.w, contour=contour, finger_radius=self.finger_radius)
+                is_invalid = is_invalid or not cdp.is_valid
+                edges.append(cdp)
                 finger_v = np.dot(finger_v, self.base_rmat)
-            cnd = Candidate(edges, angle=self.unit_angle * i)
+            cnd = Candidate(edges, angle=self.unit_angle * i, is_valid=(not is_invalid))
 
             base_finger_v = np.dot(base_finger_v, self.unit_rmat)
 
