@@ -57,8 +57,11 @@ class GraspDetectionServer:
         print("receive request")
         img_msg = goal.image
         depth_msg = goal.depth
-        frame_id = depth_msg.header.frame_id
-        stamp = depth_msg.header.stamp
+        # rgbとdepthで軸の向きが違った。想定しているカメラ座標系はrgbの方
+        # frame_id = depth_msg.header.frame_id
+        # stamp = depth_msg.header.stamp
+        frame_id = img_msg.header.frame_id
+        stamp = img_msg.header.stamp
         header = Header(frame_id=frame_id, stamp=stamp)
         try:
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
