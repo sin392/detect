@@ -22,11 +22,13 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, finger_width_mm: int, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
+    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
+        self.base_angle = 360 // finger_num
         self.finger_width_mm = finger_width_mm # length between center and edge
+        self.hand_mount_rotation = hand_mount_rotation 
         self.enable_candidate_filter = enable_candidate_filter
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
@@ -119,6 +121,15 @@ class GraspDetectionServer:
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
                 bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
 
+                # NOTE: unclockwise seen from image plane is positive in cnd.angle, so convert as rotate on z-axis
+                angle = -best_cand.angle + self.hand_mount_rotation
+                angles = []
+                for i in range(1, self.finger_num + 1):
+                    raw_rotated_angle = angle - (self.base_angle * i)
+                    rotated_angle = raw_rotated_angle + 360 if raw_rotated_angle < -360 else raw_rotated_angle
+                    reversed_rotated_angle = rotated_angle + 360
+                    angles.extend([rotated_angle, reversed_rotated_angle])
+                angles.sort(key=abs)
                 objects.append(DetectedObject(
                     points=[pt.point for pt in points_w],
                     center_pose=PoseStamped(
@@ -128,8 +139,7 @@ class GraspDetectionServer:
                             orientation=c_orientation
                         )
                     ),
-                    # NOTE: unclockwise seen from image plane is positive in cnd.angle, so convert as rotate on z-axis
-                    angle=-best_cand.angle,
+                    angles=angles,
                     short_radius=bbox_short_side_3d / 2,
                     long_radius=bbox_long_side_3d / 2,
                     length_to_center=length_to_center
@@ -145,6 +155,7 @@ class GraspDetectionServer:
 if __name__ == "__main__":
     finger_num = rospy.get_param("finger_num")
     finger_width_mm = rospy.get_param("finger_width_mm")
+    hand_mount_rotation = rospy.get_param("hand_mount_rotation")
     objects_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
@@ -154,6 +165,7 @@ if __name__ == "__main__":
         "grasp_detection_server",
         finger_num=finger_num,
         finger_width_mm=finger_width_mm,
+        hand_mount_rotation=hand_mount_rotation,
         objects_topic=objects_topic,
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,
