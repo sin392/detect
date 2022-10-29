@@ -44,11 +44,11 @@ class DetectedObjectsPublisher(Publisher):
                          subscriber_listener, tcp_nodelay, latch, headers, queue_size)
         self.stack = []
 
-    def push_item(self, points: List[Point], center_pose: PoseStamped, angle: float, short_radius: float, long_radius: float, length_to_center: float):
+    def push_item(self, points: List[Point], center_pose: PoseStamped, angles: List[float], short_radius: float, long_radius: float, length_to_center: float):
         msg = DetectedObject(
             points=points,
             center_pose=center_pose,
-            angle=angle,
+            angles=angles,
             short_radius=short_radius,
             long_radius=long_radius,
             length_to_center=length_to_center
