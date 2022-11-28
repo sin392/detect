@@ -38,7 +38,7 @@ class VisualizeServer:
 
 
 if __name__ == "__main__":
-    pub_topic = rospy.get_param("candidates_topic")
+    pub_topic = rospy.get_param("candidates_img_topic")
 
     VisualizeServer("visualize_server", pub_topic)
 
