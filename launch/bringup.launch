@@ -40,6 +40,7 @@
     <param name="image_info_topic" value="$(arg image_info_topic)" />
     <param name="depth_info_topic" value="$(arg depth_info_topic)" />
     <param name="seg_topic" value="$(arg seg_topic)" />
+    <param name="candidates_img_topic" value="$(arg candidates_img_topic)" />
 
     <!-- <node name="raw_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw" /> -->
     <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg depth_topic)" />
