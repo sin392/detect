@@ -33,8 +33,6 @@ class GraspDetectionServer:
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
 
-        # Publishers
-        self.objects_publisher = DetectedObjectsPublisher(objects_topic, queue_size=10)
         # Action Clients
         self.is_client = InstanceSegmentationClient()
         self.cdt_client = ComputeDepthThresholdClient() if enable_depth_filter else None
@@ -156,7 +154,6 @@ if __name__ == "__main__":
     finger_num = rospy.get_param("finger_num")
     finger_width_mm = rospy.get_param("finger_width_mm")
     hand_mount_rotation = rospy.get_param("hand_mount_rotation")
-    objects_topic = rospy.get_param("objects_topic")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
     enable_candidate_filter = rospy.get_param("enable_candidate_filter")
@@ -166,7 +163,6 @@ if __name__ == "__main__":
         finger_num=finger_num,
         finger_width_mm=finger_width_mm,
         hand_mount_rotation=hand_mount_rotation,
-        objects_topic=objects_topic,
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,
         enable_candidate_filter=enable_candidate_filter
