@@ -35,8 +35,6 @@ RUN echo "export ROS_IP=\$(hostname -i)" >> ${HOME}/.bashrc
 # RUN echo "export PYTHONPATH=${ROS_WORKSPACE}/src/detect/scripts:\${PYTHONPATH}" >> ${HOME}/.bashrc
 RUN echo "export PYTHONPATH=\${ROS_WORKSPACE}/devel/lib/python3/dist-packages:\${PYTHONPATH}" >> ${HOME}/.bashrc
 
-RUN pip install scikit-learn
-
 # alias
 RUN echo 'alias ccp="catkin_create_pkg"' >> ${HOME}/.bashrc
 RUN echo 'alias cb="catkin build"' >> ${HOME}/.bashrc
