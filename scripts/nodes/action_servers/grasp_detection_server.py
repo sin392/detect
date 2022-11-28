@@ -15,14 +15,13 @@ from modules.ros.action_clients import (ComputeDepthThresholdClient,
                                         InstanceSegmentationClient, TFClient,
                                         VisualizeClient)
 from modules.ros.msg_handlers import RotatedBoundingBoxHandler
-from modules.ros.publishers import DetectedObjectsPublisher
 from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
 from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, objects_topic: str, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
+    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
