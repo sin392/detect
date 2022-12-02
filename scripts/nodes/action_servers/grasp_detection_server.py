@@ -26,8 +26,8 @@ class GraspDetectionServer:
 
         self.finger_num = finger_num
         self.base_angle = 360 // finger_num
-        self.finger_width_mm = finger_width_mm # length between center and edge
-        self.hand_mount_rotation = hand_mount_rotation 
+        self.finger_width_mm = finger_width_mm  # length between center and edge
+        self.hand_mount_rotation = hand_mount_rotation
         self.enable_candidate_filter = enable_candidate_filter
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
