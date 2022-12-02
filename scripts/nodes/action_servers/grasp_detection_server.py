@@ -8,7 +8,8 @@ from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionGoal,
-                        GraspDetectionResult, PointTuple2D)
+                        GraspDetectionResult, PointTuple2D,
+                        GraspDetectionDebugInfo)
 from geometry_msgs.msg import Point, Pose, PoseStamped
 from modules.grasp import GraspDetector
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
@@ -21,7 +22,7 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool):
+    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug:bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
@@ -29,9 +30,12 @@ class GraspDetectionServer:
         self.finger_width_mm = finger_width_mm # length between center and edge
         self.hand_mount_rotation = hand_mount_rotation 
         self.enable_candidate_filter = enable_candidate_filter
+        self.debug = debug
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
 
+        # Publishers
+        self.dbg_info_publisher = rospy.Publisher("/grasp_detection_server/result/debug", GraspDetectionDebugInfo, queue_size=10) if debug else None
         # Action Clients
         self.is_client = InstanceSegmentationClient()
         self.cdt_client = ComputeDepthThresholdClient() if enable_depth_filter else None
@@ -71,6 +75,7 @@ class GraspDetectionServer:
                 opt_depth_th = self.cdt_client.compute(depth_msg, n=30)
                 rospy.loginfo(opt_depth_th)
             objects: List[DetectedObject] = []
+            candidates_list: List[Candidates] = []
             for instance_msg in instances:
                 mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
                 # ignore other than instances are located on top of stacks
@@ -99,7 +104,7 @@ class GraspDetectionServer:
                 valid_candidates = [cnd for cnd in candidates if cnd.is_valid] if self.enable_candidate_filter else candidates
                 target_index = randint(0, len(valid_candidates) - 1) if len(valid_candidates) != 0 else 0
                 best_cand = valid_candidates[target_index]
-                self.visualize_client.push_item(
+                candidates_list.append(
                     Candidates(
                         candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_edges_on_rgb()]) for cnd in valid_candidates],
                         bbox=bbox_handler.msg,
@@ -145,7 +150,9 @@ class GraspDetectionServer:
                     length_to_center=length_to_center
                 ))
 
-            self.visualize_client.visualize_stacked_candidates(img_msg)
+            self.visualize_client.visualize_candidates(img_msg, candidates_list)
+            if self.dbg_info_publisher:
+                self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))
             self.server.set_succeeded(GraspDetectionResult(header, objects))
 
         except Exception as err:
@@ -159,6 +166,7 @@ if __name__ == "__main__":
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
     enable_candidate_filter = rospy.get_param("enable_candidate_filter")
+    debug = rospy.get_param("debug")
 
     GraspDetectionServer(
         "grasp_detection_server",
@@ -167,6 +175,7 @@ if __name__ == "__main__":
         hand_mount_rotation=hand_mount_rotation,
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,
-        enable_candidate_filter=enable_candidate_filter
+        enable_candidate_filter=enable_candidate_filter,
+        debug=debug
     )
     rospy.spin()
