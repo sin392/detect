@@ -2,6 +2,7 @@
 import rospy
 from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
+from std_msgs.msg import Header
 from detect.msg import (InstanceSegmentationAction, InstanceSegmentationGoal,
                         InstanceSegmentationResult)
 from detectron2.config import CfgNode, get_cfg
@@ -34,7 +35,7 @@ class InstanceSegmentationServer:
             self.seg_publisher.publish(seg, frame_id, stamp)
 
             instances = [InstanceHandler.from_predict_result(res, i) for i in range(res.num_instances)]
-            result = InstanceSegmentationResult(instances)
+            result = InstanceSegmentationResult(Header(frame_id=frame_id, stamp=stamp), instances)
             self.server.set_succeeded(result)
 
         except Exception as err:

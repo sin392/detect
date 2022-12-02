@@ -143,7 +143,7 @@ class GraspDetectionServer:
                 ))
 
             self.visualize_client.visualize_stacked_candidates(img_msg)
-            self.server.set_succeeded(GraspDetectionResult(objects))
+            self.server.set_succeeded(GraspDetectionResult(header, objects))
 
         except Exception as err:
             rospy.logerr(err)
