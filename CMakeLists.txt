@@ -63,6 +63,7 @@ add_message_files(
   Candidate.msg
   Candidates.msg
   PointTuple2D.msg
+  GraspDetectionDebugInfo.msg
 )
 
 # Generate services in the 'srv' folder
