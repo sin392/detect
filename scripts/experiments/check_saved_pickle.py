@@ -140,15 +140,32 @@ def compute_depth_profile_in_finger_area(depth, pt_xy, radius):
 
 print(compute_depth_profile_in_finger_area(depth, edge_xy[::-1], 10))
 # %%
+# merged_contour = sum(contours, [])
+# cv2.boundingRect(contours[0])
+h_indexes, w_indexes = np.where(merged_mask > 0)
+objects_bbox_x_min, objects_bbox_x_max = w_indexes.min(), w_indexes.max()
+objects_bbox_y_min, objects_bbox_y_max = h_indexes.min(), h_indexes.max()
+objects_bbox_ul = (objects_bbox_x_min, objects_bbox_y_min)
+objects_bbox_lr = (objects_bbox_x_max, objects_bbox_y_max)
+print(objects_bbox_ul, objects_bbox_lr)
+
+tmp_img = img.copy()
+cv2.rectangle(tmp_img, objects_bbox_ul, objects_bbox_lr, (255, 0, 0), 2, cv2.LINE_AA)
+plt.imshow(tmp_img)
+
+# %%
 radius = 10
 cnt = 0
 mean_depth_list = []
 scores = []
 
-# 対象周辺の仮の最大/最小深度
-assumed_min_depth = depth[merged_mask == 255].min()
-assumed_max_depth = depth.max()
-print(assumed_min_depth, assumed_max_depth)
+# objects_min_depthとobjects_max_depthはdepth filteringにも使う
+# objects_min_depth = depth[objects_bbox_x_min:objects_bbox_x_max + 1, objects_bbox_y_min:objects_bbox_y_max + 1].min()
+
+target_mask = masks[target_index]
+instance_min_depth = depth[target_mask > 0].min()  # mask is boolean array
+objects_max_depth = depth[objects_bbox_x_min:objects_bbox_x_max + 1, objects_bbox_y_min:objects_bbox_y_max + 1].max()
+print(instance_min_depth, objects_max_depth)
 
 for points in target_candidates:
     for u, v in points:
@@ -158,8 +175,9 @@ for points in target_candidates:
         # ただcandidate個別の最小値、最大値をつかってmin-max正規化してしまうとcandidate間での基準が変わってしまうのでは？
         # →　一旦ここではcandidate内での比較にとどめておきつつ、オリジナルな値を保存しておいてあとでひかくとかでもいいかも
         # 先に全体マスク領域+アルファ(explode)の領域から仮の最大・最小をもとめてもいいかも
-        # TOFIX: 最大・最小の差がないときに最も大きな値となってしまう
-        score = ((mean_depth - assumed_min_depth) / (assumed_max_depth - assumed_min_depth + 1e-6)) ** 2
+        # 逆にcandidateごとにしたほうがdepthに偏りあるとき対応できるのでは？（片側だけ残ってる場合とか）
+        # TOFIX: 最大・最小の差がないときに最も大きな値となってしまう → centerのdepthを最小値にすればいい気がする
+        score = ((mean_depth - instance_min_depth) / (objects_max_depth - instance_min_depth + 1e-6)) ** 2
         scores.append(score)
         cnt += 1
 
