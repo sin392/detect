@@ -90,9 +90,9 @@ class GraspDetectionServer:
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
                 # bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
-                # finger_width_px = self.finger_width_mm * self.fp * center_d_mm / 1000000
-                finger_width_mm = 150
-                finger_width_px = finger_width_mm * self.fp * (center_d_mm - 1000) / (1000 ** 2)
+                finger_width_px = self.finger_width_mm * self.fp * center_d_mm / 1000000
+                # finger_width_mm = 150
+                # finger_width_px = finger_width_mm * self.fp * (center_d_mm - 1000) / (1000 ** 2)
 
                 candidate_radius = finger_width_px
                 candidates = self.grasp_detector.detect(center, candidate_radius, contour, depth, filter=self.enable_candidate_filter)
