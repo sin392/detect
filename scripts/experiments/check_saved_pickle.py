@@ -6,6 +6,7 @@ from glob import glob
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import MultipleLocator
 from modules.const import SAMPLES_PATH
 
 # %%
@@ -61,7 +62,6 @@ for i, points in enumerate(target_candidates):
     color = (240, 160, 80) if is_target_candidate else (0, 0, 255)
     thickness = 2 if is_target_candidate else 1
     for edge in points:
-        print(target_center, edge)
         cv2.line(candidate_img, target_center, np.int0(edge), color, thickness, cv2.LINE_AA)
 
 for i in range(len(centers)):
@@ -71,4 +71,27 @@ for i in range(len(centers)):
 
 
 plt.imshow(candidate_img)
+# %%
+# about the third instance
+flatten_points = sum(target_candidates, [])
+print(len(flatten_points))
+print(flatten_points)
+
+depth_list = [depth[uv[::-1]] for uv in flatten_points]
+print(depth_list)
+fig, ax = plt.subplots()
+ax.set_xlim(0, len(flatten_points) - 1)
+ax.xaxis.set_major_locator(MultipleLocator(1))
+ax.plot(depth_list)
+# %%
+# insertion pointのdepthによる判定
+deep_points = [flatten_points[i] for i in range(len(flatten_points)) if depth_list[i] > 1060]
+print(len(deep_points))
+
+candidate_img_2 = candidate_img.copy()
+for pt in deep_points:
+    cv2.circle(candidate_img_2, pt, 3, (0, 255, 0), -1)
+    cv2.circle(candidate_img_2, pt, 10, (0, 100, 100), 1, cv2.LINE_AA)
+plt.imshow(candidate_img_2)
+
 # %%
