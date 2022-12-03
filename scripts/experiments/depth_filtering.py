@@ -164,17 +164,13 @@ optimal_depth_thresh_2 = np.mean(depth[ddi <= optimal_ddi_thresh])
 print(optimal_depth_thresh_2)
 flont_mask = np.where(depth <= optimal_depth_thresh_2, merged_mask, 0).astype("uint8")
 # ピクセル欠損の補完
-closing_flont_mask = cv2.morphologyEx(flont_mask, cv2.MORPH_CLOSE, np.ones((2, 2), np.uint8))
+closing_flont_mask = cv2.morphologyEx(flont_mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
 # 冗長かもしれないが膨張によってはみ出たピクセルの除去
 final_flont_mask = np.where(merged_mask > 0, closing_flont_mask, 0)
 
-fig, axes = plt.subplots(1, 3)
-axes[0].imshow(flont_mask)
-axes[0].axis("off")
-axes[1].imshow(closing_flont_mask)
-axes[1].axis("off")
-axes[2].imshow(final_flont_mask)
-axes[2].axis("off")
+# 白い箇所が最終的なマスク
+imshow(np.dstack([flont_mask, closing_flont_mask, final_flont_mask]))
+
 # %%
 flont_img = cv2.bitwise_and(img, img, mask=final_flont_mask)
 imshow(flont_img)  # %%
