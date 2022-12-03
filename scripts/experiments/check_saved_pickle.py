@@ -9,6 +9,16 @@ import numpy as np
 from matplotlib.ticker import MultipleLocator
 from modules.const import SAMPLES_PATH
 
+
+# %%
+def imshow(img, show_axis=False):
+    plt.imshow(img)
+    if show_axis is False:
+        plt.axis("off")
+        # Not work: 一部余白が残る
+        # plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
+
+
 # %%
 path_list = sorted(glob(f"{SAMPLES_PATH}/saved_data/*"))
 print(os.getcwd())
@@ -36,7 +46,7 @@ grad_img = ((1 - normalized_depth[:, :, np.newaxis]) * 255).astype("uint8")
 heatmap_img = cv2.applyColorMap(grad_img, cv2.COLORMAP_JET)
 
 base_img = cv2.addWeighted(img, 1, heatmap_img, 0.2, 0)
-plt.imshow(base_img)
+imshow(base_img)
 
 # %%
 masks = []
@@ -51,14 +61,14 @@ for obj in objects:
 
 # %%
 merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0)
-plt.imshow(merged_mask)
+imshow(merged_mask)
 # %%
 contour_img = base_img.copy()
 cv2.drawContours(contour_img, contours, -1, (255, 255, 0), -1)
 alpha = 0.1
 overlay_img = cv2.addWeighted(base_img, 1 - alpha, contour_img, alpha, 0)
 cv2.drawContours(overlay_img, contours, -1, (255, 255, 0), 2)
-plt.imshow(overlay_img)
+imshow(overlay_img)
 # %%
 candidate_img = overlay_img.copy()
 target_index = 3
@@ -79,7 +89,7 @@ for i in range(len(centers)):
     cv2.putText(candidate_img, str(i), (center[0] + 5, center[1] + 5), cv2.FONT_HERSHEY_DUPLEX, 0.5, (255, 255, 255), 2)
 
 
-plt.imshow(candidate_img)
+imshow(candidate_img)
 # %%
 # about the third instance
 flatten_points = sum(target_candidates, [])
@@ -101,7 +111,7 @@ candidate_img_2 = candidate_img.copy()
 for pt in deep_points:
     cv2.circle(candidate_img_2, pt, 3, (0, 255, 0), -1)
     cv2.circle(candidate_img_2, pt, 10, (0, 100, 100), 1, cv2.LINE_AA)
-plt.imshow(candidate_img_2)
+imshow(candidate_img_2)
 
 # %%
 print(target_center)
@@ -115,12 +125,12 @@ radius = 10
 x_slice = slice(edge_xy[0] - radius, edge_xy[0] + radius + 1)
 y_slice = slice(edge_xy[1] - radius, edge_xy[1] + radius + 1)
 cropped_img = candidate_img_2[x_slice, y_slice]
-plt.imshow(cropped_img)
+imshow(cropped_img)
 # %%
 cropped_depth = depth[x_slice, y_slice]
 finger_mask = np.zeros_like(cropped_depth, dtype=np.uint8)
 cv2.circle(finger_mask, (cropped_depth.shape[0] // 2, cropped_depth.shape[1] // 2), radius, 255, -1)
-plt.imshow(finger_mask)
+imshow(finger_mask)
 depth_values_in_mask = cropped_depth[finger_mask == 255]
 print("unique values", np.unique(depth_values_in_mask))
 print("mean value", np.mean(depth_values_in_mask))
@@ -151,7 +161,7 @@ print(objects_bbox_ul, objects_bbox_lr)
 
 tmp_img = img.copy()
 cv2.rectangle(tmp_img, objects_bbox_ul, objects_bbox_lr, (255, 0, 0), 2, cv2.LINE_AA)
-plt.imshow(tmp_img)
+imshow(tmp_img)
 
 # %%
 radius = 10
@@ -192,7 +202,7 @@ candidate_img_3 = candidate_img.copy()
 for pt in deep_points_2:
     cv2.circle(candidate_img_3, pt, 3, (0, 255, 0), -1)
     cv2.circle(candidate_img_3, pt, 10, (0, 100, 100), 1, cv2.LINE_AA)
-plt.imshow(candidate_img_3)
+imshow(candidate_img_3)
 # %%
 # 指の範囲も含めたinsertion pointの深さ判定
 print(scores)
@@ -202,7 +212,7 @@ candidate_img_4 = candidate_img.copy()
 for pt in deep_points_3:
     cv2.circle(candidate_img_4, pt, 3, (0, 255, 0), -1)
     cv2.circle(candidate_img_4, pt, 10, (0, 100, 100), 1, cv2.LINE_AA)
-plt.imshow(candidate_img_4)
+imshow(candidate_img_4)
 # %%
 # 理想的にはinsertion pointとcontact pointの組み合わせからなるパーツで評価したほうがいいが、
 # 組み合わせ角度が一定の場合は先に組み合わせ時のスコア評価してフィルタリングしたほうが計算減ってよいかも
@@ -219,7 +229,7 @@ candidate_img_5 = candidate_img.copy()
 for edge in best_candidate:
     cv2.line(candidate_img_5, target_center, np.int0(edge), (255, 0, 0), thickness, cv2.LINE_AA)
 
-plt.imshow(candidate_img_5)
+imshow(candidate_img_5)
 
 # %%
 
@@ -279,6 +289,6 @@ for i, obj in enumerate(objects):
 for i, center in enumerate(centers):
     cv2.putText(candidate_img_6, f"{i}: {best_score:.1f}", (center[0] + 5, center[1] + 5), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 0), 2)
 
-plt.imshow(candidate_img_6)
+imshow(candidate_img_6)
 
 # %%
