@@ -222,3 +222,63 @@ for edge in best_candidate:
 plt.imshow(candidate_img_5)
 
 # %%
+
+
+def insertion_point_score(min_depth, max_depth, mean_depth):
+    return ((mean_depth - min_depth) / (max_depth - instance_min_depth + 1e-6)) ** 2
+
+
+def evaluate_single_insertion_point(depth, pt_xy, radius, min_depth, max_depth):
+    _, _, mean_depth = compute_depth_profile_in_finger_area(depth, pt_xy, radius)
+    score = insertion_point_score(min_depth, max_depth, mean_depth)
+    return score
+
+
+def evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth):
+    scores = []
+    for points in candidates:
+        for u, v in points:
+            score = evaluate_single_insertion_point(depth, (v, u), radius, min_depth, max_depth)
+            scores.append(score)
+
+    return scores
+
+
+def evaluate_single_candidate(insertion_point_scores):
+    """ candidateに所属するinsertion_pointのスコアの積 """
+    return np.prod(insertion_point_scores)
+
+
+def evaluate_candidates(depth, candidates, radius, min_depth, max_depth):
+    scores = evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth)
+    finger_num = len(candidates[0])
+    candidates_scores = [evaluate_single_candidate(scores[i:i + finger_num]) for i in range(0, len(scores), finger_num)]
+
+    return candidates_scores
+
+
+# %%
+# candidates_list全体に対する評価と可視化
+candidate_img_6 = img.copy()
+for i, obj in enumerate(objects):
+    candidates = obj["candidates"]
+    mask = obj["mask"]
+    center = obj["center"]
+    instance_min_depth = depth[mask > 0].min()
+    scores = evaluate_candidates(depth, candidates, radius, instance_min_depth, objects_max_depth)
+    best_index = np.argmax(scores)
+    best_score = scores[best_index]
+    best_candidate = candidates[best_index]
+    print(i, instance_min_depth, best_score)
+    coef = ((1 - best_score) ** 2)
+    color = (255, 255 * coef, 255 * coef)
+
+    for edge in best_candidate:
+        cv2.line(candidate_img_6, center, np.int0(edge), color, 2, cv2.LINE_AA)
+
+for i, center in enumerate(centers):
+    cv2.putText(candidate_img_6, f"{i}: {best_score:.1f}", (center[0] + 5, center[1] + 5), cv2.FONT_HERSHEY_DUPLEX, 0.5, (0, 0, 0), 2)
+
+plt.imshow(candidate_img_6)
+
+# %%
