@@ -30,6 +30,15 @@ with open(path, mode='rb') as f:
     axes[0].imshow(img)
     axes[1].imshow(depth, cmap="binary")
 # %%
+normalized_depth = (depth.copy() - depth.min()) / (depth.max() - depth.min())
+
+grad_img = ((1 - normalized_depth[:, :, np.newaxis]) * 255).astype("uint8")
+heatmap_img = cv2.applyColorMap(grad_img, cv2.COLORMAP_JET)
+
+base_img = cv2.addWeighted(img, 1, heatmap_img, 0.2, 0)
+plt.imshow(base_img)
+
+# %%
 masks = []
 contours = []
 centers = []
@@ -44,10 +53,10 @@ for obj in objects:
 merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0)
 plt.imshow(merged_mask)
 # %%
-contour_img = img.copy()
+contour_img = base_img.copy()
 cv2.drawContours(contour_img, contours, -1, (255, 255, 0), -1)
 alpha = 0.1
-overlay_img = cv2.addWeighted(img, 1 - alpha, contour_img, alpha, 0)
+overlay_img = cv2.addWeighted(base_img, 1 - alpha, contour_img, alpha, 0)
 cv2.drawContours(overlay_img, contours, -1, (255, 255, 0), 2)
 plt.imshow(overlay_img)
 # %%
