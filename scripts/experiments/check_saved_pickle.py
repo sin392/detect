@@ -37,7 +37,7 @@ for obj in objects:
     masks.append(obj["mask"])
     contours.append(obj["contour"])
     centers.append(obj["center"])
-    candidates_list.append(obj["candidates_list"])
+    candidates_list.append(obj["candidates"])
 
 # %%
 merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0)
@@ -51,17 +51,18 @@ cv2.drawContours(overlay_img, contours, -1, (255, 255, 0), 2)
 plt.imshow(overlay_img)
 # %%
 candidate_img = overlay_img.copy()
-target_index = 0
+target_index = 3
+target_candidate_index = 1
 
 target_candidates = candidates_list[target_index]
-print(np.array(candidates_list).shape)
 target_center = centers[target_index]
-for points_list in target_candidates:
-    for points in points_list:
-        for edge in points:
-            # print(target_center, edge)
-            cv2.line(candidate_img, target_center, np.int0(edge), (255, 0, 0), 1)
-    break
+for i, points in enumerate(target_candidates):
+    is_target_candidate = target_candidate_index == i
+    color = (240, 160, 80) if is_target_candidate else (0, 0, 255)
+    thickness = 2 if is_target_candidate else 1
+    for edge in points:
+        print(target_center, edge)
+        cv2.line(candidate_img, target_center, np.int0(edge), color, thickness, cv2.LINE_AA)
 
 for i in range(len(centers)):
     center = centers[i]
