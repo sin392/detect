@@ -50,18 +50,21 @@ def compute_intersection_between_contour_and_line(contour, line_pt1, line_pt2):
     TODO: 線分ごとに描画と論理積をとり非効率なので改善方法要検討
     """
     # TODO: クロップはマスクで共通なので外に出したい、クラスとしてまとめてもいいかも
-    x, y, _, _ = cv2.boundingRect(contours[0])
+    x, y, h, w = cv2.boundingRect(contour)
+    cropped_img_shape = (h, w)
     upper_left_point = np.array((x, y))
-    base_img = np.zeros(upper_left_point, dtype=np.uint8)
-
-    cnt_img = base_img.copy()
+    # クロップ前に計算したcontourをクロップ後の画像座標に変換し描画
+    cnt_img = np.zeros(cropped_img_shape)
     shifted_contour = contour - upper_left_point
     cv2.drawContours(cnt_img, [shifted_contour], -1, 255)
-    line_img = base_img.copy()
+    # クロップ前に計算したlineをクロップ後の画像座標に変換し描画
+    line_img = np.zeros(cropped_img_shape)
     shifted_line_pt1, shifted_line_pt2 = [tuple(pt - upper_left_point) for pt in (line_pt1, line_pt2)]
     line_img = cv2.line(line_img, shifted_line_pt1, shifted_line_pt2, 255)
-    bitwise_img = base_img.copy()
+    # バイナリ画像(cnt_img, line_img)のbitwiseを用いて、contourとlineの交点を検出
+    bitwise_img = np.zeros(cropped_img_shape)
     cv2.bitwise_and(cnt_img, line_img, bitwise_img)
+
     intersection = [(x, y) for x, y in zip(*np.where(bitwise_img > 0))][0]
     original_intersection = tuple(intersection + upper_left_point)
     return original_intersection
@@ -86,3 +89,5 @@ def wrapper():
 cProfile.run("wrapper()")
 
 # (100, 100)で0.01sec, (1000, 1000)で0.03sec
+
+# %%
