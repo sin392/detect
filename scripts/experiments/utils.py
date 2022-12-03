@@ -1,4 +1,16 @@
+import pickle
+
 import matplotlib.pyplot as plt
+
+
+def load_py2_pickle(path):
+    with open(path, mode='rb') as f:
+        # python2でつくったpickleはpython3ではエンコーディングエラーがでる
+        # ref: https://qiita.com/f0o0o/items/4cdad7f3748741a3cf74
+        # 自作msgが入ってくるとエラー出る
+        data = pickle.load(f, encoding='latin1')
+
+    return data
 
 
 def imshow(img, show_axis=False):

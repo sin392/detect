@@ -1,6 +1,5 @@
 # %%
 import os
-import pickle
 from glob import glob
 
 import cv2
@@ -8,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MultipleLocator
 from modules.const import SAMPLES_PATH
-from utils import imshow
+from utils import imshow, load_py2_pickle
 
 # %%
 path_list = sorted(glob(f"{SAMPLES_PATH}/saved_data/*"))
@@ -17,19 +16,15 @@ print(path_list)
 # %%
 path = path_list[0]
 print(path)
-with open(path, mode='rb') as f:
-    # python2でつくったpickleはpython3ではエンコーディングエラーがでる
-    # ref: https://qiita.com/f0o0o/items/4cdad7f3748741a3cf74
-    # 自作msgが入ってくるとエラー出る
-    data = pickle.load(f, encoding='latin1')
+data = load_py2_pickle(path)
 
-    img = data["img"]
-    depth = data["depth"]
-    objects = data["objects"]
+img = data["img"]
+depth = data["depth"]
+objects = data["objects"]
 
-    fig, axes = plt.subplots(1, 2)
-    axes[0].imshow(img)
-    axes[1].imshow(depth, cmap="binary")
+fig, axes = plt.subplots(1, 2)
+axes[0].imshow(img)
+axes[1].imshow(depth, cmap="binary")
 # %%
 normalized_depth = (depth.copy() - depth.min()) / (depth.max() - depth.min())
 
