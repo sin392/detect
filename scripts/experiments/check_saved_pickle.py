@@ -104,3 +104,61 @@ for pt in deep_points:
 plt.imshow(candidate_img_2)
 
 # %%
+print(target_center)
+print(target_candidates)
+target_candidate = target_candidates[target_candidate_index]
+print(target_candidate)
+
+edge_xy = target_candidate[0][::-1]
+radius = 10
+# 画面端だとエラーでそう
+x_slice = slice(edge_xy[0] - radius, edge_xy[0] + radius + 1)
+y_slice = slice(edge_xy[1] - radius, edge_xy[1] + radius + 1)
+cropped_img = candidate_img_2[x_slice, y_slice]
+plt.imshow(cropped_img)
+# %%
+cropped_depth = depth[x_slice, y_slice]
+finger_mask = np.zeros_like(cropped_depth, dtype=np.uint8)
+cv2.circle(finger_mask, (cropped_depth.shape[0] // 2, cropped_depth.shape[1] // 2), radius, 255, -1)
+plt.imshow(finger_mask)
+depth_values_in_mask = cropped_depth[finger_mask == 255]
+print("unique values", np.unique(depth_values_in_mask))
+print("mean value", np.mean(depth_values_in_mask))
+
+# %%
+
+
+def compute_mean_depth_in_finger_area(depth, pt_xy, radius):
+    x_slice = slice(pt_xy[0] - radius, pt_xy[0] + radius + 1)
+    y_slice = slice(pt_xy[1] - radius, pt_xy[1] + radius + 1)
+    cropped_depth = depth[x_slice, y_slice]
+    finger_mask = np.zeros_like(cropped_depth, dtype=np.uint8)
+    cv2.circle(finger_mask, (cropped_depth.shape[0] // 2, cropped_depth.shape[1] // 2), radius, 255, -1)
+    depth_values_in_mask = cropped_depth[finger_mask == 255]
+    return int(np.mean(depth_values_in_mask))
+
+
+print(compute_mean_depth_in_finger_area(depth, edge_xy[::-1], 10))
+# %%
+radius = 10
+cnt = 0
+mean_depth_list = []
+for points in target_candidates:
+    for u, v in points:
+        mean_depth = compute_mean_depth_in_finger_area(depth, (v, u), radius)
+        mean_depth_list.append(mean_depth)
+        cnt += 1
+
+print(mean_depth_list)
+
+# 指の範囲も含めたinsertion pointの深さ判定
+# 実際にはスコアとして計算
+deep_points_2 = [flatten_points[i] for i in range(len(flatten_points)) if mean_depth_list[i] >= 1076]
+print(len(deep_points_2))
+
+candidate_img_3 = candidate_img.copy()
+for pt in deep_points_2:
+    cv2.circle(candidate_img_3, pt, 3, (0, 255, 0), -1)
+    cv2.circle(candidate_img_3, pt, 10, (0, 100, 100), 1, cv2.LINE_AA)
+plt.imshow(candidate_img_3)
+# %%
