@@ -94,6 +94,7 @@ imshow(candidate_img_2[center[1] - 80:center[1] + 80, center[0] - 80:center[0] +
 # %%
 # 生き残ったinsertion pointからcontact pointを計算
 candidate_img_3 = img.copy()
+
 candidate_ip_scores = []
 candidate_cp_scores = []
 for points in valid_candidates:
@@ -113,17 +114,28 @@ print("ip scores", candidate_ip_scores)
 print("cp scores", candidate_cp_scores)
 candidate_edge_scores = [list(a * b) for a, b in zip(np.array(candidate_ip_scores), np.array(candidate_cp_scores))]
 print("ip x cp scores", candidate_edge_scores)
+# TODO: contact pointの中心をもとめて、マスクの重心との差をcandidateのスコアに盛り込む
 candidate_scores = [np.prod(scores) for scores in candidate_edge_scores]
 print("candidate scores", candidate_scores)
 
 imshow(candidate_img_3[center[1] - 80:center[1] + 80, center[0] - 80:center[0] + 80])
 # %%
 candidate_img_4 = img.copy()
-best_candidate = valid_candidates[np.argmax(candidate_scores)]
+best_index = np.argmax(candidate_scores)
+best_candidate = valid_candidates[best_index]
+final_contact_points = []
 for edge in best_candidate:
     contact_point = compute_contact_point(contour, center, edge, finger_radius)
+    final_contact_points.append(contact_point)
     cv2.line(candidate_img_4, center, np.int0(edge), (255, 100, 0), 2, cv2.LINE_AA)
     cv2.circle(candidate_img_4, edge, finger_radius, (255, 0, 0), 1, cv2.LINE_AA)
     cv2.circle(candidate_img_4, contact_point, finger_radius, (0, 255, 0), 1, cv2.LINE_AA)
-
+hand_radius = np.linalg.norm(np.array(center) - np.array(edge), ord=2)  # const
+print(hand_radius)
+new_center = np.int0(np.round(np.mean(final_contact_points, axis=0)))
+center_diff_score = 1 - (np.linalg.norm(np.array(center) - np.array(new_center), ord=2) / hand_radius)
+print(center, new_center, center_diff_score)
+cv2.circle(candidate_img_4, new_center, 3, (0, 0, 255), -1, cv2.LINE_AA)
 imshow(candidate_img_4[center[1] - 80:center[1] + 80, center[0] - 80:center[0] + 80])
+
+# %%
