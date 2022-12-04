@@ -125,7 +125,6 @@ class CandidateEdgePoint:
     def get_edge_on_rgbd(self) -> Tuple[Tuple[int, int], int]:
         return ((self.edge_u, self.edge_v), self.edge_d)
 
-
     def _is_depth_missing(self) -> bool:
         """depthが取得できていない(値が0以下)の場合はスキップ"""
         if self.edge_d <= 0:
@@ -210,3 +209,86 @@ class GraspDetector:
                 candidates.append(cnd)
 
         return candidates
+
+
+def compute_depth_profile_in_finger_area(depth, pt_xy, radius):
+    x_slice = slice(pt_xy[0] - radius, pt_xy[0] + radius + 1)
+    y_slice = slice(pt_xy[1] - radius, pt_xy[1] + radius + 1)
+    cropped_depth = depth[x_slice, y_slice]
+    finger_mask = np.zeros_like(cropped_depth, dtype=np.uint8)
+    cv2.circle(finger_mask, (cropped_depth.shape[0] // 2, cropped_depth.shape[1] // 2), radius, 255, -1)
+    depth_values_in_mask = cropped_depth[finger_mask == 255]
+    return int(np.min(depth_values_in_mask)), int(np.max(depth_values_in_mask)), int(np.mean(depth_values_in_mask))
+
+
+def insertion_point_score(min_depth, max_depth, mean_depth):
+    return ((mean_depth - min_depth) / (max_depth - min_depth + 1e-6)) ** 2
+
+
+def evaluate_single_insertion_point(depth, pt_xy, radius, min_depth, max_depth):
+    _, _, mean_depth = compute_depth_profile_in_finger_area(depth, pt_xy, radius)
+    score = insertion_point_score(min_depth, max_depth, mean_depth)
+    return score
+
+
+def evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth):
+    scores = []
+    for points in candidates:
+        for u, v in points:
+            score = evaluate_single_insertion_point(depth, (v, u), radius, min_depth, max_depth)
+            scores.append(score)
+
+    return scores
+
+
+def evaluate_single_insertion_points_set(insertion_point_scores):
+    """ 同じのcandidateに所属するinsertion_pointのスコアの積 """
+    return np.prod(insertion_point_scores)
+
+
+def evaluate_insertion_points_set(depth, candidates, radius, min_depth, max_depth):
+    scores = evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth)
+    finger_num = len(candidates[0])
+    candidates_scores = [evaluate_single_insertion_points_set(scores[i:i + finger_num]) for i in range(0, len(scores), finger_num)]
+
+    return candidates_scores
+
+
+def compute_intersection_between_contour_and_line(img_shape, contour, line_pt1_xy, line_pt2_xy):
+    """
+    輪郭と線分の交点座標を取得する
+    TODO: 線分ごとに描画と論理積をとり非効率なので改善方法要検討
+    """
+    blank_img = np.zeros(img_shape)
+    # クロップ前に計算したcontourをクロップ後の画像座標に変換し描画
+    cnt_img = blank_img.copy()
+    cv2.drawContours(cnt_img, [contour], -1, 255, 1, lineType=cv2.LINE_AA)
+    # クロップ前に計算したlineをクロップ後の画像座標に変換し描画
+    line_img = blank_img.copy()
+    # 斜めの場合、ピクセルが重ならない場合あるのでlineはthicknessを２にして平均をとる
+    line_img = cv2.line(line_img, line_pt1_xy, line_pt2_xy, 255, 2, lineType=cv2.LINE_AA)
+    # バイナリ画像(cnt_img, line_img)のbitwiseを用いて、contourとlineの交点を検出
+    bitwise_img = blank_img.copy()
+    cv2.bitwise_and(cnt_img, line_img, bitwise_img)
+
+    intersections = [(w, h) for h, w in zip(*np.where(bitwise_img > 0))]  # hw to xy
+    mean_intersection = np.int0(np.round(np.mean(intersections, axis=0)))
+    return mean_intersection
+
+
+def compute_contact_point(contour, center, edge, finger_radius):
+    # TODO: ↓の内部でおこなっているcontourの外接矩形による画像cropは共通なので引き出す
+    x, y, h, w = cv2.boundingRect(contour)
+    upper_left_point = np.array((x, y))
+    shifted_contour = contour - upper_left_point
+    shifted_center, shifted_edge = [tuple(pt - upper_left_point) for pt in (center, edge)]
+
+    shifted_intersection = compute_intersection_between_contour_and_line((h, w), shifted_contour, shifted_center, shifted_edge)
+    intersection = tuple(shifted_intersection + upper_left_point)
+
+    direction_v = np.array(edge) - np.array(center)
+    unit_direction_v = direction_v / np.linalg.norm(direction_v, ord=2)
+    # 移動後座標 = 移動元座標 + 方向ベクトル x 移動量(指半径[pixel])
+    contact_point = np.int0(np.round(intersection + unit_direction_v * finger_radius))
+
+    return contact_point
