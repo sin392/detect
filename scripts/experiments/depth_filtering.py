@@ -175,3 +175,43 @@ imshow(np.dstack([flont_mask, closing_flont_mask, final_flont_mask]))
 flont_img = cv2.bitwise_and(img, img, mask=final_flont_mask)
 imshow(flont_img)  # %%
 # %%
+
+
+def compute_optimal_depth_thresh_using_ddi(depth, n):
+    # ddiヒストグラムからddiしきい値を算出（物体のエッジに相当）
+    ddi = trasnform_ddi(depth, n)
+    hist_without_mask = cv2.calcHist([ddi], channels=[0], mask=None, histSize=[uint16_max], ranges=[0, uint16_max - 1])
+    min_ddi, max_ddi = ddi.min(), ddi.max()
+    h_list = []
+    for i in range(min_ddi, max_ddi + 1):
+        t1 = np.sum(hist_without_mask[i - n:i + n + 1])
+        t2 = np.sum(hist_without_mask[i - n * 2:i - n])
+        t3 = np.sum(hist_without_mask[i + n + 1:i + n * 2 + 1])
+        res = t1 - t2 - t3
+        h_list.append(res)
+    sorted_h = np.argsort(h_list) + min_v  # argsortはデフォルト昇順
+    optimal_ddi_thresh = sorted_h[-1]
+    # ddiしきい値をdepthしきい値に変換
+    optimal_depth_thresh = np.mean(depth[ddi <= optimal_ddi_thresh])
+
+    return optimal_depth_thresh
+
+
+def extract_flont_img(img, mask, n):
+    optimal_depth_thresh = compute_optimal_depth_thresh_using_ddi(depth, n)
+    flont_mask = np.where(depth <= optimal_depth_thresh, mask, 0).astype("uint8")
+    # 欠損ピクセルの補完
+    closing_flont_mask = cv2.morphologyEx(flont_mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+    # 膨張によりはみ出したピクセルの除去
+    final_flont_mask = np.where(mask > 0, closing_flont_mask, 0)
+    result_img = cv2.bitwise_and(img, img, mask=final_flont_mask)
+
+    return result_img
+
+
+fig, axes = plt.subplots(1, 2)
+axes[0].imshow(extract_flont_img(img, merged_mask, 5))
+axes[1].imshow(extract_flont_img(depth, merged_mask, 5))
+
+
+# %%

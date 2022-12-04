@@ -13,8 +13,8 @@ def load_py2_pickle(path):
     return data
 
 
-def imshow(img, show_axis=False):
-    plt.imshow(img)
+def imshow(img, show_axis=False, cmap=None):
+    plt.imshow(img, cmap=cmap)
     if show_axis is False:
         plt.axis("off")
         # Not work: 一部余白が残る
