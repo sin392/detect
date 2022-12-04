@@ -23,8 +23,7 @@ USER ${USER}
 # add non-root operations
 RUN mv ${HOME}/workspace ${HOME}/catkin_ws
 WORKDIR ${ROS_WORKSPACE}
-# WARN: ユーザを切り替えるとdetectron2消えちゃってるかもしれないので再インストール
-RUN pip install --user -e detectron2_repo
+
 RUN mkdir -p ${ROS_WORKSPACE}/src
 RUN echo "set +e" >> ${HOME}/.bashrc
 
@@ -34,6 +33,7 @@ RUN echo "source \${ROS_WORKSPACE}/devel/setup.bash" >> ${HOME}/.bashrc
 RUN echo "export ROS_IP=\$(hostname -i)" >> ${HOME}/.bashrc
 # RUN echo "export PYTHONPATH=${ROS_WORKSPACE}/src/detect/scripts:\${PYTHONPATH}" >> ${HOME}/.bashrc
 RUN echo "export PYTHONPATH=\${ROS_WORKSPACE}/devel/lib/python3/dist-packages:\${PYTHONPATH}" >> ${HOME}/.bashrc
+RUN echo ":set encoding=utf-8\n:set fileencodings=iso-2022-jp,euc-jp,sjis,utf-8\n:set fileformats=unix,dos,mac" >> ${HOME}/.vimrc
 
 # alias
 RUN echo 'alias ccp="catkin_create_pkg"' >> ${HOME}/.bashrc

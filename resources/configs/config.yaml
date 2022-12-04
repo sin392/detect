@@ -1,4 +1,4 @@
-_BASE_: "../../../../detectron2_repo/configs/Base-RCNN-FPN.yaml"
+_BASE_: "./Base-RCNN-FPN.yaml"
 DATASETS:
   TRAIN:
     - cabbage_train
