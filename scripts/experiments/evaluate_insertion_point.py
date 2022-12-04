@@ -240,15 +240,15 @@ def evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth):
     return scores
 
 
-def evaluate_single_candidate(insertion_point_scores):
-    """ candidateに所属するinsertion_pointのスコアの積 """
+def evaluate_single_insertion_points_set(insertion_point_scores):
+    """ 同じのcandidateに所属するinsertion_pointのスコアの積 """
     return np.prod(insertion_point_scores)
 
 
-def evaluate_candidates(depth, candidates, radius, min_depth, max_depth):
+def evaluate_insertion_points_set(depth, candidates, radius, min_depth, max_depth):
     scores = evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth)
     finger_num = len(candidates[0])
-    candidates_scores = [evaluate_single_candidate(scores[i:i + finger_num]) for i in range(0, len(scores), finger_num)]
+    candidates_scores = [evaluate_single_insertion_points_set(scores[i:i + finger_num]) for i in range(0, len(scores), finger_num)]
 
     return candidates_scores
 
@@ -261,7 +261,7 @@ for i, obj in enumerate(objects):
     mask = obj["mask"]
     center = obj["center"]
     instance_min_depth = depth[mask > 0].min()
-    scores = evaluate_candidates(depth, candidates, radius, instance_min_depth, objects_max_depth)
+    scores = evaluate_insertion_points_set(depth, candidates, radius, instance_min_depth, objects_max_depth)
     best_index = np.argmax(scores)
     best_score = scores[best_index]
     best_candidate = candidates[best_index]
