@@ -159,8 +159,7 @@ imshow(cropped_shifted_contact_img_2)
 
 
 def compute_contact_point(contour, center, edge, finger_radius):
-    # TODO: ↓の内部でおこなっているcontourの外接矩形による画像cropは共通なので引き出す
-    x, y, h, w = cv2.boundingRect(contour)
+    x, y, w, h = cv2.boundingRect(contour)
     upper_left_point = np.array((x, y))
     shifted_contour = contour - upper_left_point
     shifted_center, shifted_edge = [tuple(pt - upper_left_point) for pt in (center, edge)]
@@ -190,4 +189,17 @@ for points in candidates:
 cropped_contact_img_3 = contact_img_3[center[1] - 80:center[1] + 80, center[0] - 80:center[0] + 80]
 imshow(cropped_contact_img_3)
 
+# %%
+contact_img_4 = img.copy()
+for obj in objects:
+    contour = obj["contour"]
+    candidates = obj["candidates"]
+    center = obj["center"]
+    for points in candidates:
+        for edge in points:
+            contact_point = compute_contact_point(contour, center, edge, finger_radius)
+            cv2.line(contact_img_4, center, edge, (0, 0, 255), 1, lineType=cv2.LINE_AA)
+            cv2.circle(contact_img_4, contact_point, 3, (0, 255, 0), 1, lineType=cv2.LINE_AA)
+            cv2.circle(contact_img_4, edge, 3, (255, 0, 0), 1, lineType=cv2.LINE_AA)
+imshow(contact_img_4)
 # %%

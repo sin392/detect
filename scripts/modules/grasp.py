@@ -88,9 +88,12 @@ class CandidateEdgePoint:
         self.contour = contour
 
         # ピクセル座標の整数化とフレームアウトの補正
-        self.edge_u, is_over_range_u = self.clip_pixel_index(int(round(edge[0])), 0, w - 1)
-        self.edge_v, is_over_range_v = self.clip_pixel_index(int(round(edge[1])), 0, h - 1)
-        self.edge_d = depth[self.edge_v][self.edge_u] if type(depth) is np.ndarray else None
+        self.edge_u, is_over_range_u = self.clip_pixel_index(
+            int(round(edge[0])), 0, w - 1)
+        self.edge_v, is_over_range_v = self.clip_pixel_index(
+            int(round(edge[1])), 0, h - 1)
+        self.edge_d = depth[self.edge_v][self.edge_u] if type(
+            depth) is np.ndarray else None
         is_over_range = is_over_range_u or is_over_range_v
         # フレームアウトしていたらその時点でinvalid
         self.is_valid = not is_over_range or self.validate()
@@ -136,7 +139,8 @@ class CandidateEdgePoint:
         # measureDict=Trueのときpolygonの内側にptが存在する場合正の距離、輪郭上で０、外側で負の距離
         # TODO: marginをfinger_radiusから決定
         # ptの要素がnumpy.intだとエラー
-        edge_inner_dist = cv2.pointPolygonTest(self.contour, (self.edge_u, self.edge_v), measureDist=True)
+        edge_inner_dist = cv2.pointPolygonTest(
+            self.contour, (self.edge_u, self.edge_v), measureDist=True)
         # edge_inner_dist = cv2.pointPolygonTest(
         #     self.contour, (self.edge_u, self.edge_v), measureDist=True)
         if edge_inner_dist - margin > 0:
@@ -190,7 +194,8 @@ class GraspDetector:
         base_finger_v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
         candidates = []
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
-        center_d = depth[center[1]][center[0]] if type(depth) is np.ndarray else None
+        center_d = depth[center[1]][center[0]] if type(
+            depth) is np.ndarray else None
         for i in range(self.candidate_num):
             edges = []
             finger_v = base_finger_v
@@ -201,7 +206,8 @@ class GraspDetector:
                 is_invalid = is_invalid or not cdp.is_valid
                 edges.append(cdp)
                 finger_v = np.dot(finger_v, self.base_rmat)
-            cnd = Candidate(edges, angle=self.unit_angle * i, is_valid=(not is_invalid))
+            cnd = Candidate(edges, angle=self.unit_angle *
+                            i, is_valid=(not is_invalid))
 
             base_finger_v = np.dot(base_finger_v, self.unit_rmat)
 
@@ -216,7 +222,8 @@ def compute_depth_profile_in_finger_area(depth, pt_xy, radius):
     y_slice = slice(pt_xy[1] - radius, pt_xy[1] + radius + 1)
     cropped_depth = depth[x_slice, y_slice]
     finger_mask = np.zeros_like(cropped_depth, dtype=np.uint8)
-    cv2.circle(finger_mask, (cropped_depth.shape[0] // 2, cropped_depth.shape[1] // 2), radius, 255, -1)
+    cv2.circle(
+        finger_mask, (cropped_depth.shape[0] // 2, cropped_depth.shape[1] // 2), radius, 255, -1)
     depth_values_in_mask = cropped_depth[finger_mask == 255]
     return int(np.min(depth_values_in_mask)), int(np.max(depth_values_in_mask)), int(np.mean(depth_values_in_mask))
 
@@ -226,7 +233,8 @@ def insertion_point_score(min_depth, max_depth, mean_depth):
 
 
 def evaluate_single_insertion_point(depth, pt_xy, radius, min_depth, max_depth):
-    _, _, mean_depth = compute_depth_profile_in_finger_area(depth, pt_xy, radius)
+    _, _, mean_depth = compute_depth_profile_in_finger_area(
+        depth, pt_xy, radius)
     score = insertion_point_score(min_depth, max_depth, mean_depth)
     return score
 
@@ -235,7 +243,8 @@ def evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth):
     scores = []
     for points in candidates:
         for u, v in points:
-            score = evaluate_single_insertion_point(depth, (v, u), radius, min_depth, max_depth)
+            score = evaluate_single_insertion_point(
+                depth, (v, u), radius, min_depth, max_depth)
             scores.append(score)
 
     return scores
@@ -247,9 +256,11 @@ def evaluate_single_insertion_points_set(insertion_point_scores):
 
 
 def evaluate_insertion_points_set(depth, candidates, radius, min_depth, max_depth):
-    scores = evaluate_insertion_points(depth, candidates, radius, min_depth, max_depth)
+    scores = evaluate_insertion_points(
+        depth, candidates, radius, min_depth, max_depth)
     finger_num = len(candidates[0])
-    candidates_scores = [evaluate_single_insertion_points_set(scores[i:i + finger_num]) for i in range(0, len(scores), finger_num)]
+    candidates_scores = [evaluate_single_insertion_points_set(
+        scores[i:i + finger_num]) for i in range(0, len(scores), finger_num)]
 
     return candidates_scores
 
@@ -266,29 +277,33 @@ def compute_intersection_between_contour_and_line(img_shape, contour, line_pt1_x
     # クロップ前に計算したlineをクロップ後の画像座標に変換し描画
     line_img = blank_img.copy()
     # 斜めの場合、ピクセルが重ならない場合あるのでlineはthicknessを２にして平均をとる
-    line_img = cv2.line(line_img, line_pt1_xy, line_pt2_xy, 255, 2, lineType=cv2.LINE_AA)
+    line_img = cv2.line(line_img, line_pt1_xy, line_pt2_xy,
+                        255, 2, lineType=cv2.LINE_AA)
     # バイナリ画像(cnt_img, line_img)のbitwiseを用いて、contourとlineの交点を検出
     bitwise_img = blank_img.copy()
     cv2.bitwise_and(cnt_img, line_img, bitwise_img)
 
-    intersections = [(w, h) for h, w in zip(*np.where(bitwise_img > 0))]  # hw to xy
+    intersections = [(w, h)
+                     for h, w in zip(*np.where(bitwise_img > 0))]  # hw to xy
     mean_intersection = np.int0(np.round(np.mean(intersections, axis=0)))
     return mean_intersection
 
 
 def compute_contact_point(contour, center, edge, finger_radius):
-    # TODO: ↓の内部でおこなっているcontourの外接矩形による画像cropは共通なので引き出す
-    x, y, h, w = cv2.boundingRect(contour)
+    x, y, w, h = cv2.boundingRect(contour)
     upper_left_point = np.array((x, y))
     shifted_contour = contour - upper_left_point
-    shifted_center, shifted_edge = [tuple(pt - upper_left_point) for pt in (center, edge)]
+    shifted_center, shifted_edge = [
+        tuple(pt - upper_left_point) for pt in (center, edge)]
 
-    shifted_intersection = compute_intersection_between_contour_and_line((h, w), shifted_contour, shifted_center, shifted_edge)
+    shifted_intersection = compute_intersection_between_contour_and_line(
+        (h, w), shifted_contour, shifted_center, shifted_edge)
     intersection = tuple(shifted_intersection + upper_left_point)
 
     direction_v = np.array(edge) - np.array(center)
     unit_direction_v = direction_v / np.linalg.norm(direction_v, ord=2)
     # 移動後座標 = 移動元座標 + 方向ベクトル x 移動量(指半径[pixel])
-    contact_point = np.int0(np.round(intersection + unit_direction_v * finger_radius))
+    contact_point = np.int0(
+        np.round(intersection + unit_direction_v * finger_radius))
 
     return contact_point
