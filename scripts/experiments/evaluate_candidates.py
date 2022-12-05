@@ -187,10 +187,11 @@ class GraspCandidateElement:
     def get_scores(self):
         return {"insertion": self.insertion_score, "contact": self.contact_score}
 
-    def draw(self, img, line_color=(0, 0, 0), line_thickness=1, circle_thickness=1):
+    def draw(self, img, line_color=(0, 0, 0), line_thickness=1, circle_thickness=1, show_circle=True):
         cv2.line(img, self.center, self.insertion_point, line_color, line_thickness, cv2.LINE_AA)
-        cv2.circle(img, self.insertion_point, finger_radius, (255, 0, 0), circle_thickness, cv2.LINE_AA)
-        cv2.circle(img, self.contact_point, finger_radius, (0, 255, 0), circle_thickness, cv2.LINE_AA)
+        if show_circle:
+            cv2.circle(img, self.insertion_point, finger_radius, (255, 0, 0), circle_thickness, cv2.LINE_AA)
+            cv2.circle(img, self.contact_point, finger_radius, (0, 255, 0), circle_thickness, cv2.LINE_AA)
 
         return img
 
@@ -211,8 +212,9 @@ class GraspCandidate:
     def __init__(self, depth, min_depth, max_depth, contour, center, edges, finger_radius, hand_radius, candidate_score_thresh=0, element_score_thresh=0):
         self.center = center
         self.elements = [GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge, finger_radius, element_score_thresh) for edge in edges]
+        self.elements_is_valid = self.merge_elements_validness()
 
-        if self.merge_elements_validness():
+        if self.elements_is_valid:
             self.shifted_center = self.compute_contact_points_center()
             self.elements_score = self.compute_elements_score()
             self.center_diff_score = self.compute_center_diff_score(hand_radius)
@@ -223,7 +225,7 @@ class GraspCandidate:
             self.center_diff_score = None
             self.total_score = 0.
 
-        self.is_valid = self.total_score >= candidate_score_thresh
+        self.is_valid = self.elements_is_valid and self.total_score >= candidate_score_thresh
 
     def merge_elements_validness(self):
         return np.all([el.is_valid for el in self.elements])
@@ -254,9 +256,9 @@ class GraspCandidate:
     def get_scores(self):
         return {"elements": self.elements_score, "center_diff": self.center_diff_score}
 
-    def draw(self, img, line_color=(0, 0, 0), line_thickness=1, circle_thickness=1):
+    def draw(self, img, line_color=(0, 0, 0), line_thickness=1, circle_thickness=1, show_circle=True):
         for el in self.elements:
-            el.draw(img, line_color, line_thickness, circle_thickness)
+            el.draw(img, line_color, line_thickness, circle_thickness, show_circle)
         return img
 
 
@@ -268,5 +270,34 @@ print(gc.get_scores())
 test_img = img.copy()
 gc.draw(test_img, (255, 100, 0), 2, 0)
 imshow(crop(test_img, gc.center, 160))
+
+# %%
+element_score_thresh = 0.1
+candidate_score_thresh = 0.1
+candidate_img = img.copy()
+for i, obj in enumerate(objects):
+    candidates = obj["candidates"]
+    mask = obj["mask"]
+    contour = obj["contour"]
+    center = obj["center"]
+    instance_min_depth = depth[mask > 0].min()
+
+    gc_list = []
+    best_score = 0
+    best_index = 0
+    for j, points in enumerate(candidates):
+        gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius, candidate_score_thresh, element_score_thresh)
+        print(j, gc.total_score, gc.elements_is_valid, gc.is_valid)
+        if gc.is_valid:
+            # validなcandidateの多さはインスタンスの優先順位決定に使えそう
+            gc_list.append(gc)
+            if gc.total_score > best_score:
+                best_score = gc.total_score
+                best_index = j
+            coef = ((1 - gc.total_score) ** 2)
+            color = (255, 255 * coef, 255 * coef)
+            gc.draw(candidate_img, line_color=color, show_circle=False)
+
+imshow(candidate_img)
 
 # %%
