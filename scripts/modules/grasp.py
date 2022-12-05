@@ -3,6 +3,8 @@ from typing import List, Optional, Tuple
 import cv2
 import numpy as np
 
+from modules.image import extract_depth_between_two_points
+
 
 class ParallelCandidate:
     def __init__(self, p1, p2, pc, depth, h, w, contour, finger_radius):
@@ -307,3 +309,20 @@ def compute_contact_point(contour, center, edge, finger_radius):
         np.round(intersection + unit_direction_v * finger_radius))
 
     return contact_point
+
+
+def compute_bw_depth_profile(depth, contact_point, insertion_point):
+    values = extract_depth_between_two_points(
+        depth, contact_point, insertion_point)
+    min_depth, max_depth = values.min(), values.max()
+    # 欠損ピクセルの値は除外
+    valid_values = values[values > 0]
+    mean_depth = np.mean(valid_values) if len(valid_values) > 0 else 0
+    return min_depth, max_depth, mean_depth
+
+
+def compute_bw_depth_score(depth, contact_point, insertion_point, min_depth):
+    _, max_depth, mean_depth = compute_bw_depth_profile(
+        depth, contact_point, insertion_point)
+    score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth)
+    return score

@@ -6,6 +6,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from modules.const import SAMPLES_PATH
+from scipy.ndimage import map_coordinates
 from utils import imshow, load_py2_pickle
 
 # %%
@@ -122,8 +123,10 @@ imshow(contact_img)
 target_index = 3
 obj = objects[target_index]
 contour = obj["contour"]
+mask = obj["mask"]
 candidates = obj["candidates"]
 center = obj["center"]
+instance_min_depth = depth[mask > 0].min()
 
 contact_img_2 = img.copy()
 for points in candidates:
@@ -193,8 +196,10 @@ imshow(cropped_contact_img_3)
 contact_img_4 = img.copy()
 for obj in objects:
     contour = obj["contour"]
+    mask = obj["mask"]
     candidates = obj["candidates"]
     center = obj["center"]
+    instance_min_depth = depth[mask > 0].min()
     for points in candidates:
         for edge in points:
             contact_point = compute_contact_point(contour, center, edge, finger_radius)
@@ -202,4 +207,45 @@ for obj in objects:
             cv2.circle(contact_img_4, contact_point, 3, (0, 255, 0), 1, lineType=cv2.LINE_AA)
             cv2.circle(contact_img_4, edge, 3, (255, 0, 0), 1, lineType=cv2.LINE_AA)
 imshow(contact_img_4)
+
+# %%
+# ipとcpの間のdepthを調べる
+
+
+def extract_depth_between_two_points(depth, p1, p2):
+    n = np.int0(np.round(np.linalg.norm(np.array(p1) - np.array(p2), ord=2)))
+    h, w = np.linspace(p1[0], p2[0], n), np.linspace(p1[1], p2[1], n)
+    res = map_coordinates(depth, np.vstack((h, w)))
+    return res
+
+
+fig, axes = plt.subplots(1, 2)
+hist_1 = extract_depth_between_two_points(depth, center, edge)
+hist_2 = extract_depth_between_two_points(depth, contact_point, edge)
+axes[0].plot(hist_1)
+axes[1].plot(hist_2)
+
+max_depth_bw_pts_1 = np.max(hist_1)
+max_depth_bw_pts_2 = np.max(hist_2)
+mean_depth_bw_pts_1 = np.mean(hist_1)
+mean_depth_bw_pts_2 = np.mean(hist_2)
+bw_pts_score_1 = (mean_depth_bw_pts_1 - instance_min_depth) / (max_depth_bw_pts_1 - instance_min_depth)
+bw_pts_score_2 = (mean_depth_bw_pts_2 - instance_min_depth) / (max_depth_bw_pts_2 - instance_min_depth)
+print("max depth:", max_depth_bw_pts_1, max_depth_bw_pts_2)
+print("mean depth:", mean_depth_bw_pts_1, mean_depth_bw_pts_2)
+print("score:", bw_pts_score_1, bw_pts_score_2)
+
+
+def compute_bw_depth_score(depth, contact_point, insertion_point, min_depth):
+    values = extract_depth_between_two_points(depth, contact_point, insertion_point)
+    max_depth = values.max()
+    valid_values = values[values > 0]
+    mean_depth = np.mean(valid_values) if len(valid_values) > 0 else 0
+    score = (mean_depth - min_depth) / (max_depth - min_depth)
+    return score
+
+
+print(compute_bw_depth_score(depth, center, edge, instance_min_depth))
+
+
 # %%

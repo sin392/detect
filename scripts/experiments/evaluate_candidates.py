@@ -5,7 +5,8 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from modules.const import SAMPLES_PATH
-from modules.grasp import (compute_contact_point,
+from modules.grasp import (compute_bw_depth_profile, compute_contact_point,
+                           compute_depth_profile_in_finger_area,
                            evaluate_single_insertion_point)
 from utils import imshow, load_py2_pickle
 
@@ -153,30 +154,45 @@ class GraspCandidateElement:
     def __init__(self, depth, min_depth, max_depth, contour, center, edge, finger_radius, score_thresh=0):
         self.center = center
         self.insertion_point = edge
+        # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
         self.insertion_score = self.compute_point_score(self.insertion_point, depth, min_depth, max_depth, finger_radius)
 
         if self.insertion_score >= score_thresh:
-            self.is_valid = True
             self.contact_point = self.compute_contact_point(contour, finger_radius)
             self.contact_score = self.compute_point_score(self.contact_point, depth, min_depth, max_depth, finger_radius)
+            self.bw_depth_score = self.compute_bw_depth_score(depth, min_depth)
             self.total_score = self.compute_total_score()
+            # self.is_valid = self.bw_mean_depth - min_depth > 20
+            self.is_valid = True
         else:
             # Noneとか入れるとあとで面倒になったりしないか
-            self.is_valid = False
             self.contact_point = None
             self.contact_score = None
+            # self.bw_mean_depth = None
             self.total_score = 0.
+            self.is_valid = False
 
     def compute_contact_point(self, contour, finger_radius):
         contact_point = tuple(compute_contact_point(contour, self.center, self.insertion_point, finger_radius))
         return contact_point
 
     def compute_point_score(self, point, depth, min_depth, max_depth, finger_radius):
-        return evaluate_single_insertion_point(depth, point[::-1], finger_radius, min_depth, max_depth)
+        # score =  evaluate_single_insertion_point(depth, point[::-1], finger_radius, min_depth, max_depth)
+        _, _, mean_depth = compute_depth_profile_in_finger_area(depth, point[::-1], finger_radius)
+        score = ((mean_depth - min_depth) / (max_depth - min_depth + 1e-6)) ** 2
+        return score
+
+    def compute_bw_depth_score(self, depth, min_depth):
+        # score = compute_bw_depth_score(depth, self.contact_point, self.insertion_point, min_depth)
+        _, max_depth, mean_depth = compute_bw_depth_profile(depth, self.contact_point, self.insertion_point)
+        # self.bw_mean_depth = mean_depth
+        # score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth)
+        score = (max(0, (mean_depth - min_depth)) / (max_depth - min_depth)) ** 2
+        return score
 
     def compute_total_score(self):
         # TODO: ip, cp間のdepthの評価 & 各項の重み付け
-        return self.insertion_score * self.contact_score
+        return self.insertion_score * self.contact_score * self.bw_depth_score
 
     def check_invalidness(self, thresh):
         return self.total_score < thresh
@@ -185,7 +201,7 @@ class GraspCandidateElement:
         return {"center": self.center, "contact": self.contact_point, "insertion": self.insertion_point}
 
     def get_scores(self):
-        return {"insertion": self.insertion_score, "contact": self.contact_score}
+        return {"insertion": self.insertion_score, "contact": self.contact_score, "bw_depth": self.bw_depth_score}
 
     def draw(self, img, line_color=(0, 0, 0), line_thickness=1, circle_thickness=1, show_circle=True):
         cv2.line(img, self.center, self.insertion_point, line_color, line_thickness, cv2.LINE_AA)
@@ -225,7 +241,8 @@ class GraspCandidate:
             self.center_diff_score = None
             self.total_score = 0.
 
-        self.is_valid = self.elements_is_valid and self.total_score >= candidate_score_thresh
+        self.is_valid = self.elements_is_valid or \
+            self.total_score >= candidate_score_thresh
 
     def merge_elements_validness(self):
         return np.all([el.is_valid for el in self.elements])
@@ -236,7 +253,9 @@ class GraspCandidate:
 
     def compute_elements_score(self):
         element_scores = self.get_element_scores()
-        return np.prod(element_scores)
+        # return np.prod(element_scores)
+        # return np.mean(element_scores) * (np.min(element_scores) / np.max(element_scores))
+        return (np.mean(element_scores) - np.min(element_scores)) / (np.max(element_scores) - np.min(element_scores))
 
     def compute_center_diff_score(self, hand_radius):
         return 1. - (np.linalg.norm(np.array(self.center) - np.array(self.shifted_center), ord=2) / hand_radius)
@@ -272,7 +291,7 @@ gc.draw(test_img, (255, 100, 0), 2, 0)
 imshow(crop(test_img, gc.center, 160))
 
 # %%
-element_score_thresh = 0.1
+element_score_thresh = 0.7
 candidate_score_thresh = 0.1
 candidate_img = img.copy()
 for i, obj in enumerate(objects):
@@ -287,8 +306,8 @@ for i, obj in enumerate(objects):
     best_index = 0
     for j, points in enumerate(candidates):
         gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius, candidate_score_thresh, element_score_thresh)
-        print(j, gc.total_score, gc.elements_is_valid, gc.is_valid)
         if gc.is_valid:
+            print(i + j, gc.total_score, instance_min_depth, [el.insertion_score for el in gc.elements])
             # validなcandidateの多さはインスタンスの優先順位決定に使えそう
             gc_list.append(gc)
             if gc.total_score > best_score:
@@ -296,7 +315,10 @@ for i, obj in enumerate(objects):
                 best_index = j
             coef = ((1 - gc.total_score) ** 2)
             color = (255, 255 * coef, 255 * coef)
-            gc.draw(candidate_img, line_color=color, show_circle=False)
+            min_insertion_score = np.min([el.insertion_score for el in gc.elements])
+            # if min_insertion_score <= 0.9:
+            #     color = (0, 0, 255)
+            gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
 imshow(candidate_img)
 
