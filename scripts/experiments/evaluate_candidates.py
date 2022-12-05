@@ -26,6 +26,13 @@ axes[1].imshow(depth, cmap="binary")
 # %%
 
 
+def crop(img, center, width):
+    half_width = width // 2
+    return img[center[1] - half_width:center[1] + half_width, center[0] - half_width:center[0] + half_width]
+
+# %%
+
+
 def compute_min_max_depth(depth, mask=None):
     if mask is None:
         return depth.min(), depth.max()  # global min max
@@ -61,7 +68,7 @@ for i, obj in enumerate(objects):
 
 print(len(insertion_points_info))
 fig, axes = plt.subplots(1, 2)
-axes[0].imshow(candidate_img[center[1] - 80:center[1] + 80, center[0] - 80:center[0] + 80])
+axes[0].imshow(crop(candidate_img, center, 160))
 axes[1].hist([obj["score"] for obj in insertion_points_info])
 
 # %%
@@ -89,7 +96,7 @@ for i in range(0, len(insertion_points_info) + 1, finger_num):
         valid_candidates.append(valid_edges)
 
 print(valid_candidates)
-imshow(candidate_img_2[center[1] - 80:center[1] + 80, center[0] - 80:center[0] + 80])
+imshow(crop(candidate_img_2, center, 160))
 
 # %%
 # 生き残ったinsertion pointからcontact pointを計算
@@ -118,7 +125,7 @@ print("ip x cp scores", candidate_edge_scores)
 candidate_scores = [np.prod(scores) for scores in candidate_edge_scores]
 print("candidate scores", candidate_scores)
 
-imshow(candidate_img_3[center[1] - 80:center[1] + 80, center[0] - 80:center[0] + 80])
+imshow(crop(candidate_img_3, center, 160))
 # %%
 candidate_img_4 = img.copy()
 best_index = np.argmax(candidate_scores)
@@ -135,7 +142,131 @@ print(hand_radius)
 new_center = np.int0(np.round(np.mean(final_contact_points, axis=0)))
 center_diff_score = 1 - (np.linalg.norm(np.array(center) - np.array(new_center), ord=2) / hand_radius)
 print(center, new_center, center_diff_score)
-cv2.circle(candidate_img_4, new_center, 3, (0, 0, 255), -1, cv2.LINE_AA)
-imshow(candidate_img_4[center[1] - 80:center[1] + 80, center[0] - 80:center[0] + 80])
+cv2.circle(candidate_img_4, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
+cv2.circle(candidate_img_4, new_center, 3, (0, 255, 0), -1, cv2.LINE_AA)
+imshow(crop(candidate_img_4, center, 160))
+
+# %%
+
+
+class GraspCandidateElement:
+    def __init__(self, depth, min_depth, max_depth, contour, center, edge, finger_radius, score_thresh=0):
+        self.center = center
+        self.insertion_point = edge
+        self.insertion_score = self.compute_point_score(self.insertion_point, depth, min_depth, max_depth, finger_radius)
+
+        if self.insertion_score >= score_thresh:
+            self.is_valid = True
+            self.contact_point = self.compute_contact_point(contour, finger_radius)
+            self.contact_score = self.compute_point_score(self.contact_point, depth, min_depth, max_depth, finger_radius)
+            self.total_score = self.compute_total_score()
+        else:
+            # Noneとか入れるとあとで面倒になったりしないか
+            self.is_valid = False
+            self.contact_point = None
+            self.contact_score = None
+            self.total_score = 0.
+
+    def compute_contact_point(self, contour, finger_radius):
+        contact_point = tuple(compute_contact_point(contour, self.center, self.insertion_point, finger_radius))
+        return contact_point
+
+    def compute_point_score(self, point, depth, min_depth, max_depth, finger_radius):
+        return evaluate_single_insertion_point(depth, point[::-1], finger_radius, min_depth, max_depth)
+
+    def compute_total_score(self):
+        # TODO: ip, cp間のdepthの評価 & 各項の重み付け
+        return self.insertion_score * self.contact_score
+
+    def check_invalidness(self, thresh):
+        return self.total_score < thresh
+
+    def get_points(self):
+        return {"center": self.center, "contact": self.contact_point, "insertion": self.insertion_point}
+
+    def get_scores(self):
+        return {"insertion": self.insertion_score, "contact": self.contact_score}
+
+    def draw(self, img, line_color=(0, 0, 0), line_thickness=1, circle_thickness=1):
+        cv2.line(img, self.center, self.insertion_point, line_color, line_thickness, cv2.LINE_AA)
+        cv2.circle(img, self.insertion_point, finger_radius, (255, 0, 0), circle_thickness, cv2.LINE_AA)
+        cv2.circle(img, self.contact_point, finger_radius, (0, 255, 0), circle_thickness, cv2.LINE_AA)
+
+        return img
+
+
+gce = GraspCandidateElement(depth, instance_min_depth, objects_max_depth, contour, center, edge, finger_radius)
+print(gce.get_points())
+print(gce.get_scores())
+print("total score:", gce.total_score)
+
+test_img = img.copy()
+gce.draw(test_img, (255, 100, 0))
+
+imshow(crop(test_img, center, 160))
+# %%
+
+
+class GraspCandidate:
+    def __init__(self, depth, min_depth, max_depth, contour, center, edges, finger_radius, hand_radius, candidate_score_thresh=0, element_score_thresh=0):
+        self.center = center
+        self.elements = [GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge, finger_radius, element_score_thresh) for edge in edges]
+
+        if self.merge_elements_validness():
+            self.shifted_center = self.compute_contact_points_center()
+            self.elements_score = self.compute_elements_score()
+            self.center_diff_score = self.compute_center_diff_score(hand_radius)
+            self.total_score = self.compute_total_score()
+        else:
+            self.shifted_center = None
+            self.elements_score = None
+            self.center_diff_score = None
+            self.total_score = 0.
+
+        self.is_valid = self.total_score >= candidate_score_thresh
+
+    def merge_elements_validness(self):
+        return np.all([el.is_valid for el in self.elements])
+
+    def compute_contact_points_center(self):
+        contact_points = self.get_contact_points()
+        return np.int0(np.round(np.mean(contact_points, axis=0)))
+
+    def compute_elements_score(self):
+        element_scores = self.get_element_scores()
+        return np.prod(element_scores)
+
+    def compute_center_diff_score(self, hand_radius):
+        return 1. - (np.linalg.norm(np.array(self.center) - np.array(self.shifted_center), ord=2) / hand_radius)
+
+    def compute_total_score(self):
+        return self.elements_score * self.center_diff_score
+
+    def get_insertion_points(self):
+        return tuple([el.insertion_point for el in self.elements])
+
+    def get_contact_points(self):
+        return tuple([el.contact_point for el in self.elements])
+
+    def get_element_scores(self):
+        return tuple([el.total_score for el in self.elements])
+
+    def get_scores(self):
+        return {"elements": self.elements_score, "center_diff": self.center_diff_score}
+
+    def draw(self, img, line_color=(0, 0, 0), line_thickness=1, circle_thickness=1):
+        for el in self.elements:
+            el.draw(img, line_color, line_thickness, circle_thickness)
+        return img
+
+
+gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius, 0, 0.5)
+print(gc.get_insertion_points())
+print(gc.get_contact_points())
+print(gc.get_scores())
+
+test_img = img.copy()
+gc.draw(test_img, (255, 100, 0), 2, 0)
+imshow(crop(test_img, gc.center, 160))
 
 # %%
