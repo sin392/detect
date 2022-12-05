@@ -1,5 +1,6 @@
 # %%
 from glob import glob
+from time import time
 
 import cv2
 import matplotlib.pyplot as plt
@@ -294,6 +295,7 @@ imshow(crop(test_img, gc.center, 160))
 element_score_thresh = 0.7
 candidate_score_thresh = 0.1
 candidate_img = img.copy()
+total_spent_time = 0
 for i, obj in enumerate(objects):
     candidates = obj["candidates"]
     mask = obj["mask"]
@@ -304,10 +306,13 @@ for i, obj in enumerate(objects):
     gc_list = []
     best_score = 0
     best_index = 0
+    start = time()
     for j, points in enumerate(candidates):
         gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius, candidate_score_thresh, element_score_thresh)
+        spent_time = time() - start
+        total_spent_time += spent_time
         if gc.is_valid:
-            print(i + j, gc.total_score, instance_min_depth, [el.insertion_score for el in gc.elements])
+            print(i + j, gc.total_score, instance_min_depth, spent_time)
             # validなcandidateの多さはインスタンスの優先順位決定に使えそう
             gc_list.append(gc)
             if gc.total_score > best_score:
@@ -322,6 +327,7 @@ for i, obj in enumerate(objects):
 
     cv2.circle(candidate_img, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
 
+print("total time:", total_spent_time)
 imshow(candidate_img)
 
 # %%
