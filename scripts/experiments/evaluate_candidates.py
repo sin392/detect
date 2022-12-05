@@ -1,5 +1,6 @@
 # %%
 from glob import glob
+from multiprocessing import Pool
 from time import time
 
 import cv2
@@ -75,7 +76,7 @@ axes[1].hist([obj["score"] for obj in insertion_points_info])
 
 # %%
 # ip_scoreによるスレッショルド
-ip_score_thresh = 0.8
+ip_score_thresh = 0.5
 finger_num = 4
 candidate_img_2 = img.copy()
 valid_candidates = []
@@ -152,26 +153,33 @@ imshow(crop(candidate_img_4, center, 160))
 
 
 class GraspCandidateElement:
-    def __init__(self, depth, min_depth, max_depth, contour, center, edge, finger_radius, score_thresh=0):
+    def __init__(self, depth, min_depth, max_depth, contour, center, edge, finger_radius, insertion_score_thresh=0.5, contact_score_thresh=0.5, bw_depth_score_thresh=0.1):
         self.center = center
         self.insertion_point = edge
-        # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
-        self.insertion_score = self.compute_point_score(self.insertion_point, depth, min_depth, max_depth, finger_radius)
 
-        if self.insertion_score >= score_thresh:
-            self.contact_point = self.compute_contact_point(contour, finger_radius)
-            self.contact_score = self.compute_point_score(self.contact_point, depth, min_depth, max_depth, finger_radius)
-            self.bw_depth_score = self.compute_bw_depth_score(depth, min_depth)
-            self.total_score = self.compute_total_score()
-            # self.is_valid = self.bw_mean_depth - min_depth > 20
-            self.is_valid = True
-        else:
-            # Noneとか入れるとあとで面倒になったりしないか
-            self.contact_point = None
-            self.contact_score = None
-            # self.bw_mean_depth = None
-            self.total_score = 0.
-            self.is_valid = False
+        self.contact_point = None
+        self.contact_score = 0
+        self.bw_depth_score = 0
+        self.total_score = 0
+        self.is_valid = False
+
+        # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
+        # 挿入点の評価
+        self.insertion_score = self.compute_point_score(self.insertion_point, depth, min_depth, max_depth, finger_radius)
+        if self.insertion_score < insertion_score_thresh:
+            return
+        # 接触点の計算と評価
+        self.contact_point = self.compute_contact_point(contour, finger_radius)
+        self.contact_score = self.compute_point_score(self.contact_point, depth, min_depth, max_depth, finger_radius)
+        if self.contact_score < contact_score_thresh:
+            return
+        # 挿入点と接触点の間の障害物の評価
+        self.bw_depth_score = self.compute_bw_depth_score(depth, min_depth)
+        if self.bw_depth_score < bw_depth_score_thresh:
+            return
+        self.total_score = self.compute_total_score()
+        # すべてのスコアが基準を満たしたときのみvalid判定
+        self.is_valid = True
 
     def compute_contact_point(self, contour, finger_radius):
         contact_point = tuple(compute_contact_point(contour, self.center, self.insertion_point, finger_radius))
@@ -179,16 +187,18 @@ class GraspCandidateElement:
 
     def compute_point_score(self, point, depth, min_depth, max_depth, finger_radius):
         # score =  evaluate_single_insertion_point(depth, point[::-1], finger_radius, min_depth, max_depth)
-        _, _, mean_depth = compute_depth_profile_in_finger_area(depth, point[::-1], finger_radius)
+        _, max_depth, mean_depth = compute_depth_profile_in_finger_area(depth, point[::-1], finger_radius)
         score = ((mean_depth - min_depth) / (max_depth - min_depth + 1e-6)) ** 2
         return score
 
     def compute_bw_depth_score(self, depth, min_depth):
         # score = compute_bw_depth_score(depth, self.contact_point, self.insertion_point, min_depth)
+        # insertion_point_depth = depth[self.insertion_point[::-1]]
+        # contact_point_depth = depth[self.contact_point[::-1]]
         _, max_depth, mean_depth = compute_bw_depth_profile(depth, self.contact_point, self.insertion_point)
-        # self.bw_mean_depth = mean_depth
-        # score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth)
-        score = (max(0, (mean_depth - min_depth)) / (max_depth - min_depth)) ** 2
+        # min, maxに差がないときに最大になる
+        score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth)
+        # score = (max(0, (mean_depth - min_depth)) / (max_depth - min_depth)) ** 2
         return score
 
     def compute_total_score(self):
@@ -226,24 +236,36 @@ imshow(crop(test_img, center, 160))
 
 
 class GraspCandidate:
-    def __init__(self, depth, min_depth, max_depth, contour, center, edges, finger_radius, hand_radius, candidate_score_thresh=0, element_score_thresh=0):
+    def __init__(self, depth, min_depth, max_depth, contour, center, edges, finger_radius, hand_radius,
+                 elements_score_thresh=0, center_diff_score_thresh=0, el_insertion_score_thresh=0.5, el_contact_score_thresh=0.3, el_bw_depth_score_thresh=0.2):
         self.center = center
-        self.elements = [GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge, finger_radius, element_score_thresh) for edge in edges]
+        self.elements = [
+            GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge,
+                                  finger_radius, el_insertion_score_thresh,
+                                  el_contact_score_thresh, el_bw_depth_score_thresh)
+            for edge in edges]
         self.elements_is_valid = self.merge_elements_validness()
 
-        if self.elements_is_valid:
-            self.shifted_center = self.compute_contact_points_center()
-            self.elements_score = self.compute_elements_score()
-            self.center_diff_score = self.compute_center_diff_score(hand_radius)
-            self.total_score = self.compute_total_score()
-        else:
-            self.shifted_center = None
-            self.elements_score = None
-            self.center_diff_score = None
-            self.total_score = 0.
+        self.shifted_center = None
+        self.elements_score = 0
+        self.center_diff_score = 0
+        self.total_score = 0.
+        self.is_valid = False
 
-        self.is_valid = self.elements_is_valid or \
-            self.total_score >= candidate_score_thresh
+        if self.elements_is_valid:
+            # elementの組み合わせ評価
+            self.elements_score = self.compute_elements_score()
+            if self.elements_score < elements_score_thresh:
+                return
+            # contact pointsの中心とマスクの中心のズレの評価
+            self.shifted_center = self.compute_contact_points_center()
+            self.center_diff_score = self.compute_center_diff_score(hand_radius)
+            if self.center_diff_score < center_diff_score_thresh:
+                return
+            # 各スコアの合算
+            self.total_score = self.compute_total_score()
+            # すべてのスコアが基準を満たしたときのみvalid判定
+            self.is_valid = True
 
     def merge_elements_validness(self):
         return np.all([el.is_valid for el in self.elements])
@@ -292,10 +314,9 @@ gc.draw(test_img, (255, 100, 0), 2, 0)
 imshow(crop(test_img, gc.center, 160))
 
 # %%
-element_score_thresh = 0.7
-candidate_score_thresh = 0.1
 candidate_img = img.copy()
 total_spent_time = 0
+# 並列化してみたい
 for i, obj in enumerate(objects):
     candidates = obj["candidates"]
     mask = obj["mask"]
@@ -306,13 +327,14 @@ for i, obj in enumerate(objects):
     gc_list = []
     best_score = 0
     best_index = 0
-    start = time()
     for j, points in enumerate(candidates):
-        gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius, candidate_score_thresh, element_score_thresh)
+        start = time()
+        gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius)
         spent_time = time() - start
         total_spent_time += spent_time
         if gc.is_valid:
             print(i + j, gc.total_score, instance_min_depth, spent_time)
+            print([[x for x in el.get_scores().values()] for el in gc.elements])
             # validなcandidateの多さはインスタンスの優先順位決定に使えそう
             gc_list.append(gc)
             if gc.total_score > best_score:
@@ -320,14 +342,62 @@ for i, obj in enumerate(objects):
                 best_index = j
             coef = ((1 - gc.total_score) ** 2)
             color = (255, 255 * coef, 255 * coef)
-            min_insertion_score = np.min([el.insertion_score for el in gc.elements])
+            # min_insertion_score = np.min([el.insertion_score for el in gc.elements])
             # if min_insertion_score <= 0.9:
             #     color = (0, 0, 255)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
     cv2.circle(candidate_img, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
 
+print("total instance:", len(objects))
 print("total time:", total_spent_time)
+print("mean time:", total_spent_time / len(objects))
+imshow(candidate_img)
+
+# %%
+# multiprocessingでは無名関数はつかえないらしい
+
+
+def func(x):
+    return GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, candidates[x], finger_radius, hand_radius)
+
+
+# candidates単位で並列化するだけでもだいたい
+pool_obj = Pool()
+start = time()
+answer = pool_obj.map(func, range(len(candidates)))
+end = time()
+print(end - start)
+print(answer)
+
+# %%
+# 並列化による高速化ver
+
+candidate_img = img.copy()
+total_spent_time = 0
+for i, obj in enumerate(objects):
+    candidates = obj["candidates"]
+    mask = obj["mask"]
+    contour = obj["contour"]
+    center = obj["center"]
+    instance_min_depth = depth[mask > 0].min()
+
+    pool_obj = Pool()
+    start = time()
+    gc_list = pool_obj.map(func, range(len(candidates)))
+    spent_time = time() - start
+    total_spent_time += spent_time
+    for j, gc in enumerate(gc_list):
+        if gc.is_valid:
+            coef = ((1 - gc.total_score) ** 2)
+            color = (255, 255 * coef, 255 * coef)
+            gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
+
+    cv2.circle(candidate_img, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
+
+print("total instance:", len(objects))
+print("total time:", total_spent_time)
+print("mean time:", total_spent_time / len(objects))
 imshow(candidate_img)
 
 # %%
