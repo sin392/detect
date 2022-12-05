@@ -1,6 +1,6 @@
 # %%
 from glob import glob
-from multiprocessing import Pool
+from multiprocessing import Pool, Manager
 from time import time
 
 import cv2
@@ -201,7 +201,9 @@ class GraspCandidateElement:
         # score = (max(0, (mean_depth - min_depth)) / (max_depth - min_depth)) ** 2
         return score
 
-    def compute_total_score(self):
+
+-+
+   def compute_total_score(self):
         # TODO: ip, cp間のdepthの評価 & 各項の重み付け
         return self.insertion_score * self.contact_score * self.bw_depth_score
 
@@ -371,10 +373,11 @@ print(end - start)
 print(answer)
 
 # %%
-# 並列化による高速化ver
+# 並列化による高速化ver1
 
 candidate_img = img.copy()
 total_spent_time = 0
+gc_list_list = []
 for i, obj in enumerate(objects):
     candidates = obj["candidates"]
     mask = obj["mask"]
@@ -384,20 +387,68 @@ for i, obj in enumerate(objects):
 
     pool_obj = Pool()
     start = time()
-    gc_list = pool_obj.map(func, range(len(candidates)))
+    gc_list_list.append(pool_obj.map(func, range(len(candidates))))
     spent_time = time() - start
     total_spent_time += spent_time
+
+for i, gc_list in enumerate(gc_list_list):
     for j, gc in enumerate(gc_list):
         if gc.is_valid:
             coef = ((1 - gc.total_score) ** 2)
             color = (255, 255 * coef, 255 * coef)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
-    cv2.circle(candidate_img, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
+        cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
 
 print("total instance:", len(objects))
 print("total time:", total_spent_time)
 print("mean time:", total_spent_time / len(objects))
 imshow(candidate_img)
+
+# %%
+# ref: https://superfastpython.com/parallel-nested-for-loops-in-python/
+# 並列化による高速化ver2 (共有プロセスプールの使用)
+
+def sub_task(min_depth, contour, center, candidate):
+    global objects_max_depth, finger_radius, hand_radius
+    return GraspCandidate(depth, min_depth, objects_max_depth, contour, center, candidate, finger_radius, hand_radius)
+
+
+def task(pool, obj):
+    global depth
+    mask = obj["mask"]
+    contour = obj["contour"]
+    center = obj["center"]
+    candidates = obj["candidates"]
+    instance_min_depth = depth[mask > 0].min()
+
+    args = [(instance_min_depth, contour, center, candidate) for candidate in candidates]
+    gc_list = pool.starmap(sub_task, args)
+    return gc_list
+
+
+with Manager() as manager:
+    with manager.Pool(100) as pool:
+        args = [(pool, obj) for obj in objects]
+        start = time()
+        gc_list_list = pool_obj.starmap(task, args)
+        total_spent_time = time() - start
+        
+print("total instance:", len(objects))
+print("total time:", total_spent_time)
+print("mean time:", total_spent_time / len(objects))
+
+candidate_img = img.copy()
+for i, gc_list in enumerate(gc_list_list):
+    for j, gc in enumerate(gc_list):
+        if gc.is_valid:
+            coef = ((1 - gc.total_score) ** 2)
+            color = (255, 255 * coef, 255 * coef)
+            gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
+
+        cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
+
+imshow(candidate_img)
+
 
 # %%
