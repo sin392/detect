@@ -1,6 +1,6 @@
 # %%
 from glob import glob
-from multiprocessing import Pool, Manager
+from multiprocessing import Manager, Pool
 from time import time
 
 import cv2
@@ -201,9 +201,7 @@ class GraspCandidateElement:
         # score = (max(0, (mean_depth - min_depth)) / (max_depth - min_depth)) ** 2
         return score
 
-
--+
-   def compute_total_score(self):
+    def compute_total_score(self):
         # TODO: ip, cp間のdepthの評価 & 各項の重み付け
         return self.insertion_score * self.contact_score * self.bw_depth_score
 
@@ -409,6 +407,7 @@ imshow(candidate_img)
 # ref: https://superfastpython.com/parallel-nested-for-loops-in-python/
 # 並列化による高速化ver2 (共有プロセスプールの使用)
 
+
 def sub_task(min_depth, contour, center, candidate):
     global objects_max_depth, finger_radius, hand_radius
     return GraspCandidate(depth, min_depth, objects_max_depth, contour, center, candidate, finger_radius, hand_radius)
@@ -433,7 +432,7 @@ with Manager() as manager:
         start = time()
         gc_list_list = pool_obj.starmap(task, args)
         total_spent_time = time() - start
-        
+
 print("total instance:", len(objects))
 print("total time:", total_spent_time)
 print("mean time:", total_spent_time / len(objects))
