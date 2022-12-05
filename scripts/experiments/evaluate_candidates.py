@@ -320,6 +320,8 @@ for i, obj in enumerate(objects):
             #     color = (0, 0, 255)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
+    cv2.circle(candidate_img, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
+
 imshow(candidate_img)
 
 # %%
