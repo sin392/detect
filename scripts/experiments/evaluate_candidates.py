@@ -430,7 +430,7 @@ with Manager() as manager:
     with manager.Pool(100) as pool:
         args = [(pool, obj) for obj in objects]
         start = time()
-        gc_list_list = pool_obj.starmap(task, args)
+        gc_list_list = pool.starmap(task, args)
         total_spent_time = time() - start
 
 print("total instance:", len(objects))
