@@ -39,8 +39,8 @@ def extract_top_layer(img: np.ndarray, depth: np.ndarray, n: int):
     return flont_img, flont_depth
 
 
-def extract_depth_between_two_points(depth, p1, p2):
+def extract_depth_between_two_points(depth, p1, p2, mode="nearest", order=1):
     n = np.int0(np.round(np.linalg.norm(np.array(p1) - np.array(p2), ord=2)))
-    h, w = np.linspace(p1[0], p2[0], n), np.linspace(p1[1], p2[1], n)
-    res = map_coordinates(depth, np.vstack((h, w)))
+    h, w = np.linspace(p1[1], p2[1], n), np.linspace(p1[0], p2[0], n)
+    res = map_coordinates(depth, np.vstack((h, w)), mode=mode, order=order)
     return res
