@@ -9,7 +9,10 @@ import numpy as np
 from modules.const import SAMPLES_PATH
 from modules.grasp import (compute_bw_depth_profile, compute_contact_point,
                            compute_depth_profile_in_finger_area,
-                           evaluate_single_insertion_point)
+                           compute_intersection_between_contour_and_line,
+                           evaluate_single_insertion_point,
+                           extract_depth_between_two_points)
+from scipy.ndimage import map_coordinates
 from utils import imshow, load_py2_pickle
 
 # %%
@@ -21,6 +24,7 @@ data = load_py2_pickle(path)
 img = data["img"]
 depth = data["depth"]
 objects = data["objects"]
+objects_num = len(objects)
 
 fig, axes = plt.subplots(1, 2)
 axes[0].imshow(img)
@@ -153,9 +157,10 @@ imshow(crop(candidate_img_4, center, 160))
 
 
 class GraspCandidateElement:
-    def __init__(self, depth, min_depth, max_depth, contour, center, edge, finger_radius, insertion_score_thresh=0.5, contact_score_thresh=0.5, bw_depth_score_thresh=0.1):
+    def __init__(self, depth, min_depth, max_depth, contour, center, edge, finger_radius, insertion_score_thresh=0.5, contact_score_thresh=0.5, bw_depth_score_thresh=0):
         self.center = center
         self.insertion_point = edge
+        # self.intersection_point = self.compute_intersection_point(contour)
 
         self.contact_point = None
         self.contact_score = 0
@@ -165,40 +170,64 @@ class GraspCandidateElement:
 
         # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
         # 挿入点の評価
+        # intersection_depth = depth[self.intersection_point[::-1]]
+        # mean_min_depth = np.int0(np.round(np.mean((min_depth, intersection_depth))))
+        # mean_max_depth = np.int0(np.round(np.mean((max_depth, intersection_depth))))
         self.insertion_score = self.compute_point_score(self.insertion_point, depth, min_depth, max_depth, finger_radius)
         if self.insertion_score < insertion_score_thresh:
             return
         # 接触点の計算と評価
-        self.contact_point = self.compute_contact_point(contour, finger_radius)
+        self.intersection_point = self.compute_intersection_point(contour)
+        self.contact_point = self.compute_contact_point(finger_radius)
         self.contact_score = self.compute_point_score(self.contact_point, depth, min_depth, max_depth, finger_radius)
         if self.contact_score < contact_score_thresh:
             return
         # 挿入点と接触点の間の障害物の評価
-        self.bw_depth_score = self.compute_bw_depth_score(depth, min_depth)
+        self.bw_depth_score = self.compute_bw_depth_score(depth)
+        print(self.insertion_score, self.contact_score, self.bw_depth_score)
         if self.bw_depth_score < bw_depth_score_thresh:
             return
         self.total_score = self.compute_total_score()
         # すべてのスコアが基準を満たしたときのみvalid判定
         self.is_valid = True
 
-    def compute_contact_point(self, contour, finger_radius):
-        contact_point = tuple(compute_contact_point(contour, self.center, self.insertion_point, finger_radius))
+    def compute_intersection_point(self, contour):
+        # TODO: 個々のcropはまだ上位に引き上げられそう
+        x, y, w, h = cv2.boundingRect(contour)
+        upper_left_point = np.array((x, y))
+        shifted_contour = contour - upper_left_point
+        shifted_center, shifted_edge = [
+            tuple(pt - upper_left_point) for pt in (self.center, self.insertion_point)]
+
+        shifted_intersection = compute_intersection_between_contour_and_line(
+            (h, w), shifted_contour, shifted_center, shifted_edge)
+        intersection = tuple(shifted_intersection + upper_left_point)
+        return intersection
+
+    def compute_contact_point(self, finger_radius):
+        # contact_point = tuple(compute_contact_point(contour, self.center, self.insertion_point, finger_radius))
+        direction_v = np.array(self.insertion_point) - np.array(self.center)
+        unit_direction_v = direction_v / np.linalg.norm(direction_v, ord=2)
+        # 移動後座標 = 移動元座標 + 方向ベクトル x 移動量(指半径[pixel])
+        contact_point = np.int0(
+            np.round(self.intersection_point + unit_direction_v * finger_radius))
         return contact_point
 
     def compute_point_score(self, point, depth, min_depth, max_depth, finger_radius):
         # score =  evaluate_single_insertion_point(depth, point[::-1], finger_radius, min_depth, max_depth)
-        _, max_depth, mean_depth = compute_depth_profile_in_finger_area(depth, point[::-1], finger_radius)
-        score = ((mean_depth - min_depth) / (max_depth - min_depth + 1e-6)) ** 2
+        _, _, mean_depth = compute_depth_profile_in_finger_area(depth, point[::-1], finger_radius)
+        score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
         return score
 
-    def compute_bw_depth_score(self, depth, min_depth):
+    def compute_bw_depth_score(self, depth):
         # score = compute_bw_depth_score(depth, self.contact_point, self.insertion_point, min_depth)
-        # insertion_point_depth = depth[self.insertion_point[::-1]]
-        # contact_point_depth = depth[self.contact_point[::-1]]
-        _, max_depth, mean_depth = compute_bw_depth_profile(depth, self.contact_point, self.insertion_point)
-        # min, maxに差がないときに最大になる
-        score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth)
-        # score = (max(0, (mean_depth - min_depth)) / (max_depth - min_depth)) ** 2
+        min_depth, max_depth, mean_depth = compute_bw_depth_profile(depth, self.contact_point, self.insertion_point)
+        # TOFIX: すべての値が同じ時に０になってしまう
+        score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
+        # if min_depth == mean_depth and mean_depth == max_depth:
+        #     score = 1
+        # else:
+        #     score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
         return score
 
     def compute_total_score(self):
@@ -237,7 +266,7 @@ imshow(crop(test_img, center, 160))
 
 class GraspCandidate:
     def __init__(self, depth, min_depth, max_depth, contour, center, edges, finger_radius, hand_radius,
-                 elements_score_thresh=0, center_diff_score_thresh=0, el_insertion_score_thresh=0.5, el_contact_score_thresh=0.3, el_bw_depth_score_thresh=0.2):
+                 elements_score_thresh=0, center_diff_score_thresh=0, el_insertion_score_thresh=0.5, el_contact_score_thresh=0.5, el_bw_depth_score_thresh=0):
         self.center = center
         self.elements = [
             GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge,
@@ -249,7 +278,7 @@ class GraspCandidate:
         self.shifted_center = None
         self.elements_score = 0
         self.center_diff_score = 0
-        self.total_score = 0.
+        self.total_score = 0
         self.is_valid = False
 
         if self.elements_is_valid:
@@ -316,7 +345,6 @@ imshow(crop(test_img, gc.center, 160))
 # %%
 candidate_img = img.copy()
 total_spent_time = 0
-# 並列化してみたい
 for i, obj in enumerate(objects):
     candidates = obj["candidates"]
     mask = obj["mask"]
@@ -329,7 +357,8 @@ for i, obj in enumerate(objects):
     best_index = 0
     for j, points in enumerate(candidates):
         start = time()
-        gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius)
+        gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius,
+                            0, 0, 0.5, 0.5, 0)
         spent_time = time() - start
         total_spent_time += spent_time
         if gc.is_valid:
@@ -340,11 +369,8 @@ for i, obj in enumerate(objects):
             if gc.total_score > best_score:
                 best_score = gc.total_score
                 best_index = j
-            coef = ((1 - gc.total_score) ** 2)
+            coef = (1 - gc.total_score)
             color = (255, 255 * coef, 255 * coef)
-            # min_insertion_score = np.min([el.insertion_score for el in gc.elements])
-            # if min_insertion_score <= 0.9:
-            #     color = (0, 0, 255)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
     cv2.circle(candidate_img, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
@@ -392,15 +418,15 @@ for i, obj in enumerate(objects):
 for i, gc_list in enumerate(gc_list_list):
     for j, gc in enumerate(gc_list):
         if gc.is_valid:
-            coef = ((1 - gc.total_score) ** 2)
+            coef = (1 - gc.total_score)
             color = (255, 255 * coef, 255 * coef)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
         cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
 
-print("total instance:", len(objects))
+print("total instance:", objects_num)
 print("total time:", total_spent_time)
-print("mean time:", total_spent_time / len(objects))
+print("mean time:", total_spent_time / objects_num)
 imshow(candidate_img)
 
 # %%
@@ -410,7 +436,8 @@ imshow(candidate_img)
 
 def sub_task(min_depth, contour, center, candidate):
     global objects_max_depth, finger_radius, hand_radius
-    return GraspCandidate(depth, min_depth, objects_max_depth, contour, center, candidate, finger_radius, hand_radius)
+    return GraspCandidate(depth, min_depth, objects_max_depth, contour, center, candidate, finger_radius, hand_radius,
+                          0, 0, 0.7, 0.5, 0.3)
 
 
 def task(pool, obj):
@@ -441,7 +468,7 @@ candidate_img = img.copy()
 for i, gc_list in enumerate(gc_list_list):
     for j, gc in enumerate(gc_list):
         if gc.is_valid:
-            coef = ((1 - gc.total_score) ** 2)
+            coef = (1 - gc.total_score)
             color = (255, 255 * coef, 255 * coef)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
@@ -449,5 +476,61 @@ for i, gc_list in enumerate(gc_list_list):
 
 imshow(candidate_img)
 
+
+# %%
+column = 5
+row = objects_num // column
+
+fig, axes = plt.subplots(row, column)
+for i, gc_list in enumerate(gc_list_list):
+    candidate_img = img.copy()
+    for gc in gc_list:
+        coef = (1 - gc.total_score)
+        color = (255, 255 * coef, 255 * coef)
+        gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
+        cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
+
+    r = i // (row + 1)
+    c = i % column
+    axes[r, c].imshow(crop(candidate_img, gc.center, 160))
+    axes[r, c].axis("off")
+
+# %%
+# p1, p2 = center, edge
+# p1, p2 = (526, 387), (549, 421)
+# p1, p2 = (485, 177), (493, 146)
+p1_invalid, p2_invalid = (519, 295), (527, 263)  # invalid
+p1_valid, p2_valid = (472, 176), (501, 168)  # valid
+# p1_valid, p2_valid = (0, 176), (501, 176)  # valid
+
+fig, axes = plt.subplots(2, 4)
+for i, (p1, p2) in enumerate(((p1_valid, p2_valid), (p1_invalid, p2_invalid))):
+    n = np.int0(np.round(np.linalg.norm(np.array(p1) - np.array(p2), ord=2)))
+    h, w = np.linspace(p1[0], p2[0], n), np.linspace(p1[1], p2[1], n)
+    res_constant = map_coordinates(depth, np.vstack((h, w)), cval=0, order=1)
+    res_gconstant = map_coordinates(depth, np.vstack((h, w)), mode="grid-constant", order=1)
+    res_nearest = map_coordinates(depth, np.vstack((h, w)), mode="nearest", order=1)
+
+    tmp_img = img.copy()
+    cv2.circle(tmp_img, p1, 10, (0, 255, 0), -1, cv2.LINE_AA)
+    cv2.circle(tmp_img, p2, 10, (255, 0, 0), -1, cv2.LINE_AA)
+
+    axes[i, 0].imshow(tmp_img)
+    axes[i, 1].plot(res_constant)
+    axes[i, 2].plot(res_gconstant)
+    axes[i, 3].plot(res_nearest)
+# %%
+tmp_img = img.copy()
+p1, p2 = (428, 313), (401, 297)
+print(depth[p1[::-1]], depth[p2[::-1]])
+cv2.circle(tmp_img, p1, 3, (0, 255, 0), -1, cv2.LINE_AA)
+cv2.circle(tmp_img, p2, 3, (255, 0, 0), -1, cv2.LINE_AA)
+
+n = np.int0(np.round(np.linalg.norm(np.array(p1) - np.array(p2), ord=2)))
+h, w = np.linspace(p1[1], p2[1], n), np.linspace(p1[0], p2[0], n)
+res = map_coordinates(depth, np.vstack((h, w)), mode="mirror", order=1)
+fig, axes = plt.subplots(1, 2)
+axes[0].imshow(tmp_img)
+axes[1].plot(res)
 
 # %%
