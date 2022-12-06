@@ -10,8 +10,7 @@ from modules.const import SAMPLES_PATH
 from modules.grasp import (compute_bw_depth_profile, compute_contact_point,
                            compute_depth_profile_in_finger_area,
                            compute_intersection_between_contour_and_line,
-                           evaluate_single_insertion_point,
-                           extract_depth_between_two_points)
+                           evaluate_single_insertion_point)
 from scipy.ndimage import map_coordinates
 from utils import imshow, load_py2_pickle
 
@@ -48,7 +47,7 @@ def compute_min_max_depth(depth, mask=None):
         return values.min(), values.max()  # objects min max
 
 
-finger_radius = 10
+finger_radius = 10  # for index 0
 merged_mask = np.where(np.sum([obj["mask"] for obj in objects], axis=0) > 0, 255, 0).astype("uint8")
 objects_min_depth, objects_max_depth = compute_min_max_depth(depth, merged_mask)
 print("objects range:", objects_min_depth, objects_max_depth)
