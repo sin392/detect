@@ -7,9 +7,8 @@ import rospy
 from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, DetectedObject,
-                        GraspDetectionAction, GraspDetectionGoal,
-                        GraspDetectionResult, PointTuple2D,
-                        GraspDetectionDebugInfo)
+                        GraspDetectionAction, GraspDetectionDebugInfo,
+                        GraspDetectionGoal, GraspDetectionResult, PointTuple2D)
 from geometry_msgs.msg import Point, Pose, PoseStamped
 from modules.grasp import GraspDetector
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
@@ -22,7 +21,7 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug:bool):
+    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
@@ -106,7 +105,7 @@ class GraspDetectionServer:
                 best_cand = valid_candidates[target_index]
                 candidates_list.append(
                     Candidates(
-                        candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_edges_on_rgb()]) for cnd in valid_candidates],
+                        candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()]) for cnd in valid_candidates],
                         bbox=bbox_handler.msg,
                         center=PointTuple2D(center),
                         target_index=target_index
@@ -114,7 +113,7 @@ class GraspDetectionServer:
                 )
 
                 # 3d projection
-                points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_edges_on_rgbd()]
+                points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(center, center_d_mm)
                 length_to_center = max([pt.z for pt in points_c]) - c_3d_c_on_surface.z
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)

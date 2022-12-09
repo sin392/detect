@@ -4,6 +4,9 @@ import cv2
 import numpy as np
 from modules.image import extract_depth_between_two_points
 
+ImagePointUV = Tuple[int, int]  # [px, px, mm]
+ImagePointUVD = Tuple[ImagePointUV, int]  # [px, px, mm]
+
 
 class ParallelCandidate:
     def __init__(self, p1, p2, pc, depth, h, w, contour, finger_radius):
@@ -81,93 +84,48 @@ class ParallelCandidate:
 
 
 class GraspCandidateElement:
-    def __init__(self, edge: Tuple[float, float], center_d: Optional[int] = None, h: Optional[int] = None, w: Optional[int] = None, finger_radius: Optional[float] = None, depth: Optional[np.ndarray] = None, contour: Optional[np.ndarray] = None):
+    # ハンド情報、画像情報、局所的情報（ポイント、値）、しきい値
+    def __init__(self, finger_radius: float, depth: np.ndarray, contour: np.ndarray, center: ImagePointUV, insertion_point: ImagePointUV):
         # TODO: フィルタリングに関しては1点のdepthではなく半径finger_radius内の領域のdepthの平均をとるべきかも
-        self.center_d = center_d
         self.finger_radius = finger_radius
-        self.depth = depth
-        self.contour = contour
 
-        # ピクセル座標の整数化とフレームアウトの補正
-        self.edge_u, is_over_range_u = self.clip_pixel_index(
-            int(round(edge[0])), 0, w - 1)
-        self.edge_v, is_over_range_v = self.clip_pixel_index(
-            int(round(edge[1])), 0, h - 1)
-        self.edge_d = depth[self.edge_v][self.edge_u] if type(
-            depth) is np.ndarray else None
-        is_over_range = is_over_range_u or is_over_range_v
+        self.center = center
+        self.insertion_point = insertion_point
+        self.center_d = depth[center[::-1]]
+        self.insertion_point_d = depth[insertion_point[::-1]]
+
         # フレームアウトしていたらその時点でinvalid
-        self.is_valid = not is_over_range or self.pre_validate()
+        h, w = depth.shape[:2]
+        self.is_invalid = self.pre_validate(h, w, self.insertion_point)
 
-    def clip_pixel_index(self, raw_value: int, min_value: int, max_value: int) -> Tuple[int, bool]:
-        """画面に入らない点はスキップ"""
-        if raw_value < min_value:
-            value = min_value
-            is_over_range = True
-        elif raw_value > max_value:
-            value = max_value
-            is_over_range = True
-        else:
-            is_over_range = False
-            value = raw_value
-
-        return value, is_over_range
-
-    def pre_validate(self):
+    def pre_validate(self, h, w, pt):
         """スコアを計算する前のフィルタリングのためのバリデーション"""
-        is_invalid = False
-        if self.edge_d:
-            is_invalid = is_invalid or self._is_depth_missing()
-        if type(self.contour) is np.ndarray:
-            is_invalid = is_invalid or self._is_in_mask()
-        if self.center_d is not None:
-            is_invalid = is_invalid or self._is_center_under_edges()
-        return not is_invalid
+        is_invalid = self.check_frameout(h, w, pt)
+        return is_invalid
 
-    def get_edge_on_rgb(self) -> Tuple[int, int]:
-        return (self.edge_u, self.edge_v)
+    def check_frameout(self, h: int, w: int, pt: ImagePointUV):
+        is_invalid = pt[0] < 0 or pt[1] < 0 or pt[0] >= w or pt[1] >= h
+        return is_invalid
 
-    def get_edge_on_rgbd(self) -> Tuple[Tuple[int, int], int]:
-        return ((self.edge_u, self.edge_v), self.edge_d)
+    def get_insertion_point_uv(self) -> ImagePointUV:
+        return self.insertion_point
 
-    def _is_depth_missing(self) -> bool:
-        """depthが取得できていない(値が0以下)の場合はスキップ"""
-        if self.edge_d <= 0:
-            return True
-        return False
-
-    def _is_in_mask(self, margin=1):
-        """把持点がマスク内部に位置する場合はスキップ"""
-        # measureDict=Trueのときpolygonの内側にptが存在する場合正の距離、輪郭上で０、外側で負の距離
-        # TODO: marginをfinger_radiusから決定
-        # ptの要素がnumpy.intだとエラー
-        edge_inner_dist = cv2.pointPolygonTest(
-            self.contour, (self.edge_u, self.edge_v), measureDist=True)
-        if edge_inner_dist - margin > 0:
-            return True
-
-        return False
-
-    def _is_center_under_edges(self):
-        """
-        中心のdepthが把持点のdepthより深ければ（値が大きければ）スキップ
-        * marginはdepth自体の誤差を考慮
-        """
-        # WARN: カメラと作業領域に傾きがある場合
-        return self.center_d > self.edge_d
+    # TODO: わかりづらいのでTuple[int, int, int]の形に改修
+    def get_insertion_point_uvd(self) -> ImagePointUVD:
+        return (self.get_insertion_point_uv(), self.insertion_point_d)
 
 
 class GraspCandidate:
-    def __init__(self, edges: List[GraspCandidateElement], angle: float, is_valid: bool):
-        self.edges = edges
+    def __init__(self, elements: List[GraspCandidateElement], angle: float, is_valid: bool):
+        self.elements = elements
         self.angle = angle
         self.is_valid = is_valid
 
-    def get_edges_on_rgb(self) -> List[Tuple[int, int]]:
-        return [edge.get_edge_on_rgb() for edge in self.edges]
+    def get_insertion_points_uv(self) -> List[ImagePointUV]:
+        return [el.get_insertion_point_uv() for el in self.elements]
 
-    def get_edges_on_rgbd(self) -> List[Tuple[Tuple[int, int], int]]:
-        return [edge.get_edge_on_rgbd() for edge in self.edges]
+    def get_insertion_points_uvd(self) -> List[ImagePointUVD]:
+        return [el.get_insertion_point_uvd() for el in self.elements]
 
 
 class GraspDetector:
@@ -194,16 +152,14 @@ class GraspDetector:
         base_finger_v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
         candidates = []
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
-        center_d = depth[center[1]][center[0]] if type(
-            depth) is np.ndarray else None
         for i in range(self.candidate_num):
             edges = []
             finger_v = base_finger_v
             is_invalid = False
             for _ in range(self.finger_num):
-                cdp = GraspCandidateElement(edge=tuple(center + finger_v), center_d=center_d, depth=depth,
-                                            h=self.h, w=self.w, contour=contour, finger_radius=self.finger_radius)
-                is_invalid = is_invalid or not cdp.is_valid
+                insertion_point = tuple(np.int0(np.round(center + finger_v)))
+                cdp = GraspCandidateElement(finger_radius=self.finger_radius, depth=depth, contour=contour, center=center, insertion_point=insertion_point)
+                is_invalid = is_invalid or cdp.is_invalid
                 edges.append(cdp)
                 finger_v = np.dot(finger_v, self.base_rmat)
             cnd = GraspCandidate(edges, angle=self.unit_angle * i, is_valid=(not is_invalid))
@@ -380,7 +336,7 @@ class _GraspCandidateElement:
 
     def _compute_point_score(self, depth, min_depth, max_depth, point):
         # TODO: 引数のmin, maxはターゲットオブジェクト周辺の最小値・最大値
-        _, _, mean_depth = compute_depth_profile_in_finger_area(depth, point[::-1], self.finger_radius)
+        _, _, mean_depth = compute_depth_profile_in_finger_area(depth, point[:: -1], self.finger_radius)
         score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
         return score
 
