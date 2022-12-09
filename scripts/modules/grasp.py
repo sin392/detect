@@ -11,7 +11,6 @@ ImagePointUVD = Tuple[ImagePointUV, int]  # [px, px, mm]
 class GraspCandidateElement:
     # ハンド情報、画像情報、局所的情報（ポイント、値）、しきい値
     def __init__(self, finger_radius: float, depth: np.ndarray, contour: np.ndarray, center: ImagePointUV, insertion_point: ImagePointUV):
-        # TODO: フィルタリングに関しては1点のdepthではなく半径finger_radius内の領域のdepthの平均をとるべきかも
         self.finger_radius = finger_radius
 
         self.center = center
@@ -21,12 +20,8 @@ class GraspCandidateElement:
 
         # フレームアウトしていたらその時点でinvalid
         h, w = depth.shape[:2]
-        self.is_invalid = self.pre_validate(h, w, self.insertion_point)
-
-    def pre_validate(self, h, w, pt):
-        """スコアを計算する前のフィルタリングのためのバリデーション"""
-        is_invalid = self.check_frameout(h, w, pt)
-        return is_invalid
+        self.is_frameout = self.check_frameout(h, w, self.insertion_point)
+        self.is_invalid = self.is_frameout
 
     def check_frameout(self, h: int, w: int, pt: ImagePointUV):
         is_invalid = pt[0] < 0 or pt[1] < 0 or pt[0] >= w or pt[1] >= h
@@ -35,7 +30,6 @@ class GraspCandidateElement:
     def get_insertion_point_uv(self) -> ImagePointUV:
         return self.insertion_point
 
-    # TODO: わかりづらいのでTuple[int, int, int]の形に改修
     def get_insertion_point_uvd(self) -> ImagePointUVD:
         return (self.get_insertion_point_uv(), self.insertion_point_d)
 
@@ -54,6 +48,7 @@ class GraspCandidate:
 
 
 class GraspDetector:
+    # TODO: hand_radiusの追加
     def __init__(self, frame_size, finger_num, unit_angle=15, margin=3, finger_radius=1):
         self.h, self.w = frame_size
         self.margin = margin
