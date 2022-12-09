@@ -21,10 +21,11 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, hand_radius_mm: int, finger_radius_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
+    def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
+        self.unit_angle = unit_angle
         self.base_angle = 360 // finger_num
         self.hand_radius_mm = hand_radius_mm  # length between center and edge
         self.finger_radius_mm = finger_radius_mm
@@ -52,7 +53,7 @@ class GraspDetectionServer:
         self.projector = PointProjector(cam_info)
         self.pose_estimator = PoseEstimator()
         self.grasp_detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm, finger_radius_mm=finger_radius_mm,
-                                            frame_size=frame_size, fp=fp, unit_angle=15, margin=3)
+                                            frame_size=frame_size, fp=fp, unit_angle=unit_angle)
 
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
@@ -157,6 +158,7 @@ class GraspDetectionServer:
 
 if __name__ == "__main__":
     finger_num = rospy.get_param("finger_num")
+    unit_angle = rospy.get_param("unit_angle")
     hand_radius_mm = rospy.get_param("hand_radius_mm")
     finger_radius_mm = rospy.get_param("finger_radius_mm")
     hand_mount_rotation = rospy.get_param("hand_mount_rotation")
@@ -168,6 +170,7 @@ if __name__ == "__main__":
     GraspDetectionServer(
         "grasp_detection_server",
         finger_num=finger_num,
+        unit_angle=unit_angle,
         hand_radius_mm=hand_radius_mm,
         finger_radius_mm=finger_radius_mm,
         hand_mount_rotation=hand_mount_rotation,

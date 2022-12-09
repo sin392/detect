@@ -54,7 +54,7 @@ class GraspCandidate:
 
 class GraspDetector:
     # TODO: hand_radiusの追加
-    def __init__(self, finger_num, hand_radius_mm, finger_radius_mm, unit_angle, frame_size, fp, margin):
+    def __init__(self, finger_num, hand_radius_mm, finger_radius_mm, unit_angle, frame_size, fp):
         self.finger_num = finger_num
         self.unit_angle = unit_angle  # 生成される把持候補の回転の刻み角
         # NOTE: mm, pxの変換は深度、解像度、受光素子のサイズに依存するのでdetect時に変換
@@ -63,7 +63,6 @@ class GraspDetector:
 
         self.h, self.w = frame_size
         self.fp = fp
-        self.margin = margin
 
         self.base_angle = 360 // self.finger_num  # ハンドの指間の角度 (等間隔前提)
         self.candidate_num = self.base_angle // self.unit_angle
