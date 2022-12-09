@@ -338,7 +338,7 @@ class _GraspCandidate:
                  elements_score_thresh=0, center_diff_score_thresh=0, el_insertion_score_thresh=0.5, el_contact_score_thresh=0.5, el_bw_depth_score_thresh=0):
         self.center = center
         self.finger_radius = finger_radius
-        self.hand_radius = self.hand_radius
+        self.hand_radius = hand_radius
 
         self.elements = [
             _GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge,
