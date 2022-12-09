@@ -4,8 +4,10 @@ import cv2
 import numpy as np
 from modules.image import extract_depth_between_two_points
 
-ImagePointUV = Tuple[int, int]  # [px, px, mm]
-ImagePointUVD = Tuple[ImagePointUV, int]  # [px, px, mm]
+Px = int
+Mm = float
+ImagePointUV = Tuple[Px, Px]  # [px, px, mm]
+ImagePointUVD = Tuple[ImagePointUV, Mm]  # [px, px, mm]
 
 
 class GraspCandidateElement:
@@ -23,7 +25,7 @@ class GraspCandidateElement:
         self.is_frameout = self.check_frameout(h, w, self.insertion_point)
         self.is_invalid = self.is_frameout
 
-    def check_frameout(self, h: int, w: int, pt: ImagePointUV):
+    def check_frameout(self, h: Px, w: Px, pt: ImagePointUV):
         is_invalid = pt[0] < 0 or pt[1] < 0 or pt[0] >= w or pt[1] >= h
         return is_invalid
 
@@ -35,10 +37,13 @@ class GraspCandidateElement:
 
 
 class GraspCandidate:
-    def __init__(self, elements: List[GraspCandidateElement], angle: float, is_valid: bool):
-        self.elements = elements
+    def __init__(self, finger_radius, angle, depth, contour, center, insertion_points):
+        self.finger_radius = finger_radius
         self.angle = angle
-        self.is_valid = is_valid
+        self.center = center
+        self.elements = [GraspCandidateElement(finger_radius=self.finger_radius, depth=depth, contour=contour, center=center, insertion_point=insertion_point) for insertion_point in insertion_points]
+
+        self.is_valid = False
 
     def get_insertion_points_uv(self) -> List[ImagePointUV]:
         return [el.get_insertion_point_uv() for el in self.elements]
@@ -68,28 +73,31 @@ class GraspDetector:
         self.unit_rmat = np.array(
             [[unit_cos, -unit_sin], [unit_sin, unit_cos]])
 
-    def detect(self, center: Tuple[int, int], radius: float, contour: Optional[np.ndarray] = None, depth: Optional[np.ndarray] = None, filter=True) -> List[GraspCandidate]:
-        base_finger_v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
-        candidates = []
+    # TODO: hand_radiusはインスタンス変数に
+    def compute_insertion_points(self, center: ImagePointUV, finger_v: np.ndarray):
+        insertion_points = []
+        for _ in range(self.finger_num):
+            insertion_points.append(tuple(np.int0(np.round(center + finger_v))))
+            finger_v = np.dot(finger_v, self.base_rmat)
+        return insertion_points
+
+    def detect(self, center: ImagePointUV, hand_radius: Px, depth: Optional[np.ndarray] = None, contour: Optional[np.ndarray] = None, filter=True) -> List[GraspCandidate]:
+        # ベクトルははじめの角度求めるとかで関数内部で計算してもいいかも
+        base_finger_v = np.array([0, -1]) * hand_radius  # 単位ベクトル x ハンド半径
+        candidates_list = []
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
         for i in range(self.candidate_num):
-            edges = []
             finger_v = base_finger_v
-            is_invalid = False
-            for _ in range(self.finger_num):
-                insertion_point = tuple(np.int0(np.round(center + finger_v)))
-                cdp = GraspCandidateElement(finger_radius=self.finger_radius, depth=depth, contour=contour, center=center, insertion_point=insertion_point)
-                is_invalid = is_invalid or cdp.is_invalid
-                edges.append(cdp)
-                finger_v = np.dot(finger_v, self.base_rmat)
-            cnd = GraspCandidate(edges, angle=self.unit_angle * i, is_valid=(not is_invalid))
+            insertion_points = self.compute_insertion_points(center, finger_v)
+            angle = self.unit_angle * i
+            cnd = GraspCandidate(finger_radius=self.finger_radius, angle=angle, depth=depth, contour=contour, center=center, insertion_points=insertion_points)
 
             base_finger_v = np.dot(base_finger_v, self.unit_rmat)
 
             if not filter or cnd.is_valid:
-                candidates.append(cnd)
+                candidates_list.append(cnd)
 
-        return candidates
+        return candidates_list
 
 
 def compute_depth_profile_in_finger_area(depth, pt_xy, radius):

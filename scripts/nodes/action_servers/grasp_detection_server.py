@@ -94,7 +94,7 @@ class GraspDetectionServer:
                 # finger_width_px = finger_width_mm * self.fp * (center_d_mm - 1000) / (1000 ** 2)
 
                 candidate_radius = finger_width_px
-                candidates = self.grasp_detector.detect(center, candidate_radius, contour, depth, filter=self.enable_candidate_filter)
+                candidates = self.grasp_detector.detect(center, candidate_radius, depth, contour, filter=self.enable_candidate_filter)
                 if len(candidates) == 0:
                     continue
 
