@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from random import randint
 from typing import List
 
 import numpy as np
@@ -88,7 +87,7 @@ class GraspDetectionServer:
                 opt_depth_th = self.cdt_client.compute(depth_msg, n=30)
                 rospy.loginfo(opt_depth_th)
             objects: List[DetectedObject] = []
-            candidates_list: List[Candidates] = []
+            valid_candidates_list: List[Candidates] = []
             for instance_msg in instances:
                 mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
                 # ignore other than instances are located on top of stacks
@@ -105,16 +104,19 @@ class GraspDetectionServer:
                 # bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
                 # TODO: intersectionからの計算も検討
                 min_d, max_d = depth[mask > 0].min(), depth.max()  # max_dは全体から算出
+                # detect candidates
                 candidates = self.grasp_detector.detect(center=center, depth=depth, contour=contour, min_d=min_d, max_d=max_d)
                 if len(candidates) == 0:
                     continue
-
                 # select best candidate
-                # max_hand_width_px = self.projector.get_length_between_3d_points(p1_3d_c, p2_3d_c)
                 valid_candidates = [cnd for cnd in candidates if cnd.is_valid] if self.enable_candidate_filter else candidates
-                target_index = randint(0, len(valid_candidates) - 1) if len(valid_candidates) != 0 else 0
+                if len(valid_candidates) == 0:
+                    continue
+
+                valid_scores = [cnd.total_score for cnd in valid_candidates]
+                target_index = np.argmax(valid_scores) if len(valid_scores) else 0
                 best_cand = valid_candidates[target_index]
-                candidates_list.append(
+                valid_candidates_list.append(
                     Candidates(
                         candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()]) for cnd in valid_candidates],
                         bbox=bbox_handler.msg,
@@ -161,9 +163,10 @@ class GraspDetectionServer:
                     length_to_center=length_to_center
                 ))
 
-            self.visualize_client.visualize_candidates(img_msg, candidates_list)
+            # validなもの以外も中心表示したい
+            self.visualize_client.visualize_candidates(img_msg, valid_candidates_list)
             if self.dbg_info_publisher:
-                self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))
+                self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, valid_candidates_list))
             self.server.set_succeeded(GraspDetectionResult(header, objects))
 
         except Exception as err:
