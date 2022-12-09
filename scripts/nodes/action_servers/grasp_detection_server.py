@@ -21,7 +21,9 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
+    def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int, hand_mount_rotation: int,
+                 elements_th: float, center_diff_th: float, el_insertion_th: float, el_contact_th: float, el_bw_depth_th: float,
+                 info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
@@ -30,6 +32,11 @@ class GraspDetectionServer:
         self.hand_radius_mm = hand_radius_mm  # length between center and edge
         self.finger_radius_mm = finger_radius_mm
         self.hand_mount_rotation = hand_mount_rotation
+        self.elements_th = elements_th
+        self.center_diff_th = center_diff_th
+        self.el_insertion_th = el_insertion_th
+        self.el_contact_th = el_contact_th
+        self.el_bw_depth_th = el_bw_depth_th
         self.enable_candidate_filter = enable_candidate_filter
         self.debug = debug
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
@@ -52,8 +59,12 @@ class GraspDetectionServer:
         self.bridge = CvBridge()
         self.projector = PointProjector(cam_info)
         self.pose_estimator = PoseEstimator()
-        self.grasp_detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm, finger_radius_mm=finger_radius_mm,
-                                            frame_size=frame_size, fp=fp, unit_angle=unit_angle)
+        self.grasp_detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm,
+                                            finger_radius_mm=finger_radius_mm,
+                                            unit_angle=unit_angle, frame_size=frame_size, fp=fp,
+                                            elements_th=elements_th, center_diff_th=center_diff_th,
+                                            el_insertion_th=el_insertion_th, el_contact_th=el_contact_th,
+                                            el_bw_depth_th=el_bw_depth_th)
 
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
@@ -92,7 +103,9 @@ class GraspDetectionServer:
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
                 # bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
-                candidates = self.grasp_detector.detect(center=center, depth=depth, contour=contour, filter=self.enable_candidate_filter)
+                # TODO: intersectionからの計算も検討
+                min_d, max_d = depth[mask > 0].min(), depth.max()  # max_dは全体から算出
+                candidates = self.grasp_detector.detect(center=center, depth=depth, contour=contour, min_d=min_d, max_d=max_d)
                 if len(candidates) == 0:
                     continue
 
@@ -124,6 +137,7 @@ class GraspDetectionServer:
                 bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
 
                 # NOTE: unclockwise seen from image plane is positive in cnd.angle, so convert as rotate on z-axis
+                # NOTE: 指位置が同じになる角度は複数存在するので候補に追加している
                 angle = -best_cand.angle + self.hand_mount_rotation
                 angles = []
                 for i in range(1, self.finger_num + 1):
@@ -162,6 +176,12 @@ if __name__ == "__main__":
     hand_radius_mm = rospy.get_param("hand_radius_mm")
     finger_radius_mm = rospy.get_param("finger_radius_mm")
     hand_mount_rotation = rospy.get_param("hand_mount_rotation")
+    elements_th = rospy.get_param("elements_th")
+    center_diff_th = rospy.get_param("center_diff_th")
+    el_insertion_th = rospy.get_param("el_insertion_th")
+    el_contact_th = rospy.get_param("el_contact_th")
+    el_bw_depth_th = rospy.get_param("el_bw_depth_th")
+    hand_mount_rotation = rospy.get_param("hand_mount_rotation")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
     enable_candidate_filter = rospy.get_param("enable_candidate_filter")
@@ -174,6 +194,11 @@ if __name__ == "__main__":
         hand_radius_mm=hand_radius_mm,
         finger_radius_mm=finger_radius_mm,
         hand_mount_rotation=hand_mount_rotation,
+        elements_th=elements_th,
+        center_diff_th=center_diff_th,
+        el_insertion_th=el_insertion_th,
+        el_contact_th=el_contact_th,
+        el_bw_depth_th=el_bw_depth_th,
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,
         enable_candidate_filter=enable_candidate_filter,

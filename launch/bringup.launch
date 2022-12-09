@@ -10,6 +10,11 @@
     <arg name="hand_radius_mm" default="150" />
     <arg name="finger_radius_mm" default="10" />
     <arg name="hand_mount_rotation" default="45" />
+    <arg name="elements_th" default="0." />
+    <arg name="center_diff_th" default="0." />
+    <arg name="el_insertion_th" default="0.5" />
+    <arg name="el_contact_th" default="0.5" />
+    <arg name="el_bw_depth_th" default="0." />
     <arg name="robot_name" default="myrobot" />
     <arg name="debug" default="false" />
     <arg name="image_topic" default="/$(arg robot_name)/body_camera/color/image_raw" />
@@ -39,6 +44,11 @@
     <param name="hand_radius_mm" value="$(arg hand_radius_mm)" />
     <param name="finger_radius_mm" value="$(arg finger_radius_mm)" />
     <param name="hand_mount_rotation" value="$(arg hand_mount_rotation)" />
+    <param name="elements_th" value="$(arg elements_th)" />
+    <param name="center_diff_th" value="$(arg center_diff_th)" />
+    <param name="el_insertion_th" value="$(arg el_insertion_th)" />
+    <param name="el_contact_th" value="$(arg el_contact_th)" />
+    <param name="el_bw_depth_th" value="$(arg el_bw_depth_th)" />
     <param name="robot_name" value="$(arg robot_name)" />
     <param name="debug" value="$(arg debug)" />
     <param name="image_topic" value="$(arg image_topic)" />
