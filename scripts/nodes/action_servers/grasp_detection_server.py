@@ -86,7 +86,7 @@ class GraspDetectionServer:
                         continue
 
                 center = np.array(instance_msg.center)
-                center_d_mm = depth[center[1]][center[0]]
+                center_d_mm = depth[center[1], center[0]]
                 bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 

@@ -17,8 +17,8 @@ class GraspCandidateElement:
 
         self.center = center
         self.insertion_point = insertion_point
-        # self.center_d = depth[center[1]][center[0]]
-        self.insertion_point_d = depth[insertion_point[1]][insertion_point[0]]
+        # self.center_d = depth[center[1], center[0]]
+        self.insertion_point_d = depth[insertion_point[1], insertion_point[0]]
 
         # フレームアウトしていたらその時点でinvalid
         h, w = depth.shape[:2]
@@ -93,7 +93,7 @@ class GraspDetector:
 
     def detect(self, center: ImagePointUV, depth: Optional[np.ndarray] = None, contour: Optional[np.ndarray] = None, filter=True) -> List[GraspCandidate]:
         # 単位変換
-        center_d = depth[center[1]][center[0]]
+        center_d = depth[center[1], center[0]]
         hand_radius_px = self._convert_mm_to_px(self.hand_radius_mm, center_d)
         finger_radius_px = self._convert_mm_to_px(
             self.finger_radius_mm, center_d)
