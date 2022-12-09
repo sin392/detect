@@ -78,8 +78,7 @@ class GraspDetector:
             [[unit_cos, -unit_sin], [unit_sin, unit_cos]])
 
     def _convert_mm_to_px(self, v_mm: Mm, d: Mm) -> Px:
-        v_px = v_mm * self.fp * d / 1e6
-        # v_px = v_mm * self.fp * (d - 1000) / 1e6
+        v_px = (v_mm / d) * self.fp  # (v_mm / 1000) * self.fp / (d / 1000)
         return v_px
 
     # TODO: hand_radiusはインスタンス変数に
