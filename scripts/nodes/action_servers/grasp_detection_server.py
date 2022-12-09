@@ -105,7 +105,8 @@ class GraspDetectionServer:
                 # TODO: intersectionからの計算も検討
                 min_d, max_d = depth[mask > 0].min(), depth.max()  # max_dは全体から算出
                 # detect candidates
-                candidates = self.grasp_detector.detect(center=center, depth=depth, contour=contour, min_d=min_d, max_d=max_d)
+                candidates = self.grasp_detector.detect(center=center, depth=depth,
+                                                        contour=contour, min_d=min_d, max_d=max_d)
                 if len(candidates) == 0:
                     continue
                 # select best candidate
@@ -118,22 +119,30 @@ class GraspDetectionServer:
                 best_cand = valid_candidates[target_index]
                 valid_candidates_list.append(
                     Candidates(
-                        candidates=[Candidate([PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()]) for cnd in valid_candidates],
-                        bbox=bbox_handler.msg,
+                        candidates=[
+                            Candidate(
+                                [PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()],
+                                [PointTuple2D(pt) for pt in cnd.get_contact_points_uv()],
+                                cnd.total_score,
+                                cnd.is_valid
+                            )
+                            for cnd in valid_candidates
+                        ],
+                        # bbox=bbox_handler.msg,
                         center=PointTuple2D(center),
                         target_index=target_index
                     )
                 )
 
                 # 3d projection
-                points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
+                insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(center, center_d_mm)
-                length_to_center = max([pt.z for pt in points_c]) - c_3d_c_on_surface.z
+                length_to_center = max([pt.z for pt in insertion_points_c]) - c_3d_c_on_surface.z
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
 
-                points_and_center_w = self.tf_client.transform_points(header, (*points_c, c_3d_c))
-                points_w = points_and_center_w[:-1]
-                c_3d_w = points_and_center_w[-1]
+                insertion_points_and_center_w = self.tf_client.transform_points(header, (*insertion_points_c, c_3d_c))
+                insertion_points_w = insertion_points_and_center_w[:-1]
+                c_3d_w = insertion_points_and_center_w[-1]
 
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
                 bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
@@ -149,7 +158,7 @@ class GraspDetectionServer:
                     angles.extend([rotated_angle, reversed_rotated_angle])
                 angles.sort(key=abs)
                 objects.append(DetectedObject(
-                    points=[pt.point for pt in points_w],
+                    points=[pt.point for pt in insertion_points_w],
                     center_pose=PoseStamped(
                         Header(frame_id="base_link"),
                         Pose(

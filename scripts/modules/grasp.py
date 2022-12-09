@@ -28,7 +28,10 @@ class GraspCandidateElement:
         h, w = depth.shape[:2]
         self.is_valid_pre = self._precheck_validness(h, w)
 
+        self.intersection_point = None
+        self.intersection_point_d = None
         self.contact_point = None
+        self.contact_point_d = None
         self.contact_score = 0
         self.bw_depth_score = 0
         self.total_score = 0
@@ -133,8 +136,20 @@ class GraspCandidateElement:
     def get_insertion_point_uv(self) -> ImagePointUV:
         return self.insertion_point
 
+    def get_intersection_point_uv(self) -> ImagePointUV:
+        return self.intersection_point
+
+    def get_contact_point_uv(self) -> ImagePointUV:
+        return self.contact_point
+
     def get_insertion_point_uvd(self) -> ImagePointUVD:
         return (self.get_insertion_point_uv(), self.insertion_point_d)
+
+    def get_intersection_point_uvd(self) -> ImagePointUVD:
+        return (self.get_intersection_point_uv(), self.intersection_point_d)
+
+    def get_contact_point_uvd(self) -> ImagePointUVD:
+        return (self.get_contact_point_uv(), self.contact_point_d)
 
 
 class GraspCandidate:
@@ -178,7 +193,7 @@ class GraspCandidate:
         return np.all([el.is_valid for el in self.elements])
 
     def _compute_contact_points_center(self) -> ImagePointUV:
-        contact_points = self.get_contact_points()
+        contact_points = self.get_contact_points_uv()
         return np.int0(np.round(np.mean(contact_points, axis=0)))
 
     def _compute_elements_score(self) -> float:
@@ -193,11 +208,20 @@ class GraspCandidate:
     def _compute_total_score(self) -> float:
         return self.elements_score * self.center_diff_score
 
-    def get_insertion_points(self) -> List[ImagePointUV]:
+    def get_contact_points_uv(self) -> List[ImagePointUV]:
+        return [el.contact_point for el in self.elements]
+
+    def get_insertion_points_uv(self) -> List[ImagePointUV]:
         return [el.insertion_point for el in self.elements]
 
-    def get_contact_points(self) -> List[ImagePointUV]:
-        return [el.contact_point for el in self.elements]
+    def get_insertion_points_uvd(self) -> List[ImagePointUVD]:
+        return [el.get_insertion_point_uvd() for el in self.elements]
+
+    def get_intersection_points_uvd(self) -> List[ImagePointUVD]:
+        return [el.get_intersection_point_uvd() for el in self.elements]
+
+    def get_contact_points_uvd(self) -> List[ImagePointUVD]:
+        return [el.get_contact_point_uvd() for el in self.elements]
 
     def get_element_scores(self) -> List[float]:
         return [el.total_score for el in self.elements]
@@ -209,13 +233,6 @@ class GraspCandidate:
         for el in self.elements:
             el.draw(img, line_color, line_thickness,
                     circle_thickness, show_circle)
-
-    # TODO: 重複関数の統合
-    def get_insertion_points_uv(self) -> List[ImagePointUV]:
-        return [el.get_insertion_point_uv() for el in self.elements]
-
-    def get_insertion_points_uvd(self) -> List[ImagePointUVD]:
-        return [el.get_insertion_point_uvd() for el in self.elements]
 
 
 class GraspDetector:
