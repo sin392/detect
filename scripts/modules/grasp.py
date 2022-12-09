@@ -97,7 +97,7 @@ class GraspCandidateElement:
             depth) is np.ndarray else None
         is_over_range = is_over_range_u or is_over_range_v
         # フレームアウトしていたらその時点でinvalid
-        self.is_valid = not is_over_range or self.validate()
+        self.is_valid = not is_over_range or self.pre_validate()
 
     def clip_pixel_index(self, raw_value: int, min_value: int, max_value: int) -> Tuple[int, bool]:
         """画面に入らない点はスキップ"""
@@ -113,7 +113,8 @@ class GraspCandidateElement:
 
         return value, is_over_range
 
-    def validate(self):
+    def pre_validate(self):
+        """スコアを計算する前のフィルタリングのためのバリデーション"""
         is_invalid = False
         if self.edge_d:
             is_invalid = is_invalid or self._is_depth_missing()
