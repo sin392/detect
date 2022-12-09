@@ -12,8 +12,9 @@ ImagePointUVD = Tuple[ImagePointUV, Mm]  # [px, px, mm]
 
 class GraspCandidateElement:
     # ハンド情報、画像情報、局所的情報（ポイント、値）、しきい値
-    def __init__(self, finger_radius: float, depth: np.ndarray, contour: np.ndarray, center: ImagePointUV, insertion_point: ImagePointUV):
-        self.finger_radius = finger_radius
+    def __init__(self, hand_radius_px: Px, finger_radius_px: Px, depth: np.ndarray, contour: np.ndarray, center: ImagePointUV, insertion_point: ImagePointUV):
+        self.hand_radius_px = hand_radius_px
+        self.finger_radius_px = finger_radius_px
 
         self.center = center
         self.insertion_point = insertion_point
@@ -53,12 +54,17 @@ class GraspCandidateElement:
 
 
 class GraspCandidate:
-    def __init__(self, finger_radius_px, angle, depth, contour, center, insertion_points):
+    def __init__(self, hand_radius_px, finger_radius_px, angle, depth, contour, center, insertion_points):
+        self.hand_radius_px = hand_radius_px
         self.finger_radius_px = finger_radius_px
         self.angle = angle
         self.center = center
-        self.elements = [GraspCandidateElement(finger_radius=finger_radius_px, depth=depth, contour=contour,
-                                               center=center, insertion_point=insertion_point) for insertion_point in insertion_points]
+        self.elements = [
+            GraspCandidateElement(
+                hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, depth=depth, contour=contour,
+                center=center, insertion_point=insertion_point
+            ) for insertion_point in insertion_points
+        ]
 
         self.is_valid = True
 
@@ -121,7 +127,7 @@ class GraspDetector:
             finger_v = base_finger_v
             insertion_points = self.compute_insertion_points(center, finger_v)
             angle = self.unit_angle * i
-            cnd = GraspCandidate(finger_radius_px=finger_radius_px, angle=angle,
+            cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
                                  depth=depth, contour=contour, center=center, insertion_points=insertion_points)
 
             base_finger_v = np.dot(base_finger_v, self.unit_rmat)
