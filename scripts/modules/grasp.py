@@ -17,16 +17,33 @@ class GraspCandidateElement:
 
         self.center = center
         self.insertion_point = insertion_point
-        # self.center_d = depth[center[1], center[0]]
+        self.center_d = depth[center[1], center[0]]
         self.insertion_point_d = depth[insertion_point[1], insertion_point[0]]
 
-        # フレームアウトしていたらその時点でinvalid
+        # 詳細なスコアリングの前に明らかに不正な候補は弾く
         h, w = depth.shape[:2]
-        self.is_framein = self.check_framein(h, w, insertion_point)
-        self.is_valid = self.is_framein
+        self.is_valid_pre = self._precheck_validness(h, w)
+        self.is_valid = self.is_valid_pre
 
-    def check_framein(self, h: Px, w: Px, pt: ImagePointUV):
+        if self.is_valid_pre:
+            pass
+
+    def _precheck_validness(self, h: Px, w: Px) -> bool:
+        is_valid_pre = \
+            self._check_framein(h, w, self.center) and \
+            self._check_framein(h, w, self.insertion_point) and \
+            self._check_depth_existance() and \
+            self._check_depth_difference()
+        return is_valid_pre
+
+    def _check_framein(self, h: Px, w: Px, pt: ImagePointUV) -> bool:
         return not (pt[0] < 0 or pt[1] < 0 or pt[0] >= w or pt[1] >= h)
+
+    def _check_depth_existance(self) -> bool:
+        return self.center_d != 0 and self.insertion_point_d != 0
+
+    def _check_depth_difference(self) -> bool:
+        return self.center_d <= self.insertion_point_d
 
     def get_insertion_point_uv(self) -> ImagePointUV:
         return self.insertion_point
