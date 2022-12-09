@@ -83,7 +83,8 @@ class GraspDetector:
         return v_px
 
     # TODO: hand_radiusはインスタンス変数に
-    def compute_insertion_points(self, center: ImagePointUV, finger_v: np.ndarray):
+    def compute_insertion_points(self, center: ImagePointUV, base_finger_v: np.ndarray):
+        finger_v = base_finger_v
         insertion_points = []
         for _ in range(self.finger_num):
             insertion_points.append(
