@@ -80,7 +80,7 @@ class ParallelCandidate:
         return self.pc_d > deeper_pt
 
 
-class CandidateEdgePoint:
+class GraspCandidateElement:
     def __init__(self, edge: Tuple[float, float], center_d: Optional[int] = None, h: Optional[int] = None, w: Optional[int] = None, finger_radius: Optional[float] = None, depth: Optional[np.ndarray] = None, contour: Optional[np.ndarray] = None):
         # TODO: フィルタリングに関しては1点のdepthではなく半径finger_radius内の領域のdepthの平均をとるべきかも
         self.center_d = center_d
@@ -142,8 +142,6 @@ class CandidateEdgePoint:
         # ptの要素がnumpy.intだとエラー
         edge_inner_dist = cv2.pointPolygonTest(
             self.contour, (self.edge_u, self.edge_v), measureDist=True)
-        # edge_inner_dist = cv2.pointPolygonTest(
-        #     self.contour, (self.edge_u, self.edge_v), measureDist=True)
         if edge_inner_dist - margin > 0:
             return True
 
@@ -158,8 +156,8 @@ class CandidateEdgePoint:
         return self.center_d > self.edge_d
 
 
-class Candidate:
-    def __init__(self, edges: List[CandidateEdgePoint], angle: float, is_valid: bool):
+class GraspCandidate:
+    def __init__(self, edges: List[GraspCandidateElement], angle: float, is_valid: bool):
         self.edges = edges
         self.angle = angle
         self.is_valid = is_valid
@@ -191,7 +189,7 @@ class GraspDetector:
         self.unit_rmat = np.array(
             [[unit_cos, -unit_sin], [unit_sin, unit_cos]])
 
-    def detect(self, center: Tuple[int, int], radius: float, contour: Optional[np.ndarray] = None, depth: Optional[np.ndarray] = None, filter=True) -> List[Candidate]:
+    def detect(self, center: Tuple[int, int], radius: float, contour: Optional[np.ndarray] = None, depth: Optional[np.ndarray] = None, filter=True) -> List[GraspCandidate]:
         base_finger_v = np.array([0, -1]) * radius  # 単位ベクトル x 半径
         candidates = []
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
@@ -202,12 +200,12 @@ class GraspDetector:
             finger_v = base_finger_v
             is_invalid = False
             for _ in range(self.finger_num):
-                cdp = CandidateEdgePoint(edge=tuple(center + finger_v), center_d=center_d, depth=depth,
-                                         h=self.h, w=self.w, contour=contour, finger_radius=self.finger_radius)
+                cdp = GraspCandidateElement(edge=tuple(center + finger_v), center_d=center_d, depth=depth,
+                                            h=self.h, w=self.w, contour=contour, finger_radius=self.finger_radius)
                 is_invalid = is_invalid or not cdp.is_valid
                 edges.append(cdp)
                 finger_v = np.dot(finger_v, self.base_rmat)
-            cnd = Candidate(edges, angle=self.unit_angle * i, is_valid=(not is_invalid))
+            cnd = GraspCandidate(edges, angle=self.unit_angle * i, is_valid=(not is_invalid))
 
             base_finger_v = np.dot(base_finger_v, self.unit_rmat)
 
@@ -327,7 +325,7 @@ def compute_bw_depth_score(depth, contact_point, insertion_point, min_depth):
     return score
 
 
-class GraspCandidateElement:
+class _GraspCandidateElement:
     def __init__(self, depth, min_depth, max_depth, contour, center, insertion_point, finger_radius, insertion_score_thresh=0.5, contact_score_thresh=0.5, bw_depth_score_thresh=0):
         self.center = center
         self.insertion_point = insertion_point
@@ -407,7 +405,7 @@ class GraspCandidateElement:
             cv2.circle(img, self.contact_point, self.finger_radius, (0, 255, 0), circle_thickness, cv2.LINE_AA)
 
 
-class GraspCandidate:
+class _GraspCandidate:
     def __init__(self, depth, min_depth, max_depth, contour, center, edges, finger_radius, hand_radius,
                  elements_score_thresh=0, center_diff_score_thresh=0, el_insertion_score_thresh=0.5, el_contact_score_thresh=0.5, el_bw_depth_score_thresh=0):
         self.center = center
@@ -415,9 +413,9 @@ class GraspCandidate:
         self.hand_radius = self.hand_radius
 
         self.elements = [
-            GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge,
-                                  finger_radius, el_insertion_score_thresh,
-                                  el_contact_score_thresh, el_bw_depth_score_thresh)
+            _GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge,
+                                   finger_radius, el_insertion_score_thresh,
+                                   el_contact_score_thresh, el_bw_depth_score_thresh)
             for edge in edges]
 
         self.shifted_center = None
