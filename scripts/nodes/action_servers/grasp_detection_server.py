@@ -21,17 +21,24 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, finger_width_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
+    def __init__(self, name: str, finger_num: int, hand_radius_mm: int, finger_radius_mm: int, hand_mount_rotation: int, info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
         self.base_angle = 360 // finger_num
-        self.finger_width_mm = finger_width_mm  # length between center and edge
+        self.hand_radius_mm = hand_radius_mm  # length between center and edge
+        self.finger_radius_mm = finger_radius_mm
         self.hand_mount_rotation = hand_mount_rotation
         self.enable_candidate_filter = enable_candidate_filter
         self.debug = debug
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
+
+        # convert unit
+        # ref: https://qiita.com/srs/items/e3412e5b25477b46f3bd
+        flatten_corrected_params = cam_info.P
+        fp_x, fp_y = flatten_corrected_params[0], flatten_corrected_params[5]
+        fp = (fp_x + fp_y) / 2
 
         # Publishers
         self.dbg_info_publisher = rospy.Publisher("/grasp_detection_server/result/debug", GraspDetectionDebugInfo, queue_size=10) if debug else None
@@ -44,13 +51,8 @@ class GraspDetectionServer:
         self.bridge = CvBridge()
         self.projector = PointProjector(cam_info)
         self.pose_estimator = PoseEstimator()
-        self.grasp_detector = GraspDetector(finger_num=finger_num, frame_size=frame_size, unit_angle=15, margin=3)
-
-        # convert unit
-        # ref: https://qiita.com/srs/items/e3412e5b25477b46f3bd
-        flatten_corrected_params = cam_info.P
-        fp_x, fp_y = flatten_corrected_params[0], flatten_corrected_params[5]
-        self.fp = (fp_x + fp_y) / 2
+        self.grasp_detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm, finger_radius_mm=finger_radius_mm,
+                                            frame_size=frame_size, fp=fp, unit_angle=15, margin=3)
 
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
@@ -89,12 +91,7 @@ class GraspDetectionServer:
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
                 # bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
-                finger_width_px = self.finger_width_mm * self.fp * center_d_mm / 1000000
-                # finger_width_mm = 150
-                # finger_width_px = finger_width_mm * self.fp * (center_d_mm - 1000) / (1000 ** 2)
-
-                candidate_radius = finger_width_px
-                candidates = self.grasp_detector.detect(center, candidate_radius, depth, contour, filter=self.enable_candidate_filter)
+                candidates = self.grasp_detector.detect(center=center, depth=depth, contour=contour, filter=self.enable_candidate_filter)
                 if len(candidates) == 0:
                     continue
 
@@ -160,7 +157,8 @@ class GraspDetectionServer:
 
 if __name__ == "__main__":
     finger_num = rospy.get_param("finger_num")
-    finger_width_mm = rospy.get_param("finger_width_mm")
+    hand_radius_mm = rospy.get_param("hand_radius_mm")
+    finger_radius_mm = rospy.get_param("finger_radius_mm")
     hand_mount_rotation = rospy.get_param("hand_mount_rotation")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
@@ -170,7 +168,8 @@ if __name__ == "__main__":
     GraspDetectionServer(
         "grasp_detection_server",
         finger_num=finger_num,
-        finger_width_mm=finger_width_mm,
+        hand_radius_mm=hand_radius_mm,
+        finger_radius_mm=finger_radius_mm,
         hand_mount_rotation=hand_mount_rotation,
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,
