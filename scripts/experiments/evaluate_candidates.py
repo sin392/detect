@@ -67,7 +67,7 @@ for i, obj in enumerate(objects):
 
     for j, points in enumerate(candidates):
         for edge in points:
-            score = evaluate_single_insertion_point(depth, edge[::-1], finger_radius, instance_min_depth, objects_max_depth)
+            score = evaluate_single_insertion_point(depth, edge, finger_radius, instance_min_depth, objects_max_depth)
             insertion_points_info.append({"edge": edge, "score": score, "candidate_idx": j})
             cv2.line(candidate_img, center, np.int0(edge), (0, 0, 255), 1, cv2.LINE_AA)
             cv2.circle(candidate_img, edge, finger_radius, (255, 0, 0), 1, cv2.LINE_AA)
