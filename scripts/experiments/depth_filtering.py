@@ -5,6 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from modules.const import SAMPLES_PATH
+from modules.image import extract_flont_img as new_extract_flont_img
 from scipy.signal import argrelmax, argrelmin, savgol_filter
 from utils import imshow, load_py2_pickle
 
@@ -150,8 +151,8 @@ for i in range(min_v, max_v + 1):
     t3 = np.sum(hist[i + n + 1:i + n * 2 + 1])
     res = t1 - t2 - t3
     h_list = np.append(h_list, res)
-sorted_h = np.argsort(h_list) + min_v  # argsortはデフォルト昇順
-optimal_ddi_thresh = sorted_h[-1]
+sorted_h = np.argsort(h_list)  # argsortはデフォルト昇順
+optimal_ddi_thresh = sorted_h[-1] + min_v
 print(optimal_ddi_thresh)
 
 plt.xlim(min_v, max_v)
@@ -173,7 +174,7 @@ imshow(np.dstack([flont_mask, closing_flont_mask, final_flont_mask]))
 
 # %%
 flont_img = cv2.bitwise_and(img, img, mask=final_flont_mask)
-imshow(flont_img)  # %%
+imshow(flont_img)
 # %%
 
 
@@ -189,8 +190,8 @@ def compute_optimal_depth_thresh_using_ddi(depth, n):
         t3 = np.sum(hist_without_mask[i + n + 1:i + n * 2 + 1])
         res = t1 - t2 - t3
         h_list.append(res)
-    sorted_h = np.argsort(h_list) + min_v  # argsortはデフォルト昇順
-    optimal_ddi_thresh = sorted_h[-1]
+    sorted_h = np.argsort(h_list)  # argsortはデフォルト昇順
+    optimal_ddi_thresh = sorted_h[-1] + min_ddi
     # ddiしきい値をdepthしきい値に変換
     optimal_depth_thresh = np.mean(depth[ddi <= optimal_ddi_thresh])
 
@@ -214,4 +215,6 @@ axes[0].imshow(extract_flont_img(img, merged_mask, 5))
 axes[1].imshow(extract_flont_img(depth, merged_mask, 5))
 
 
+# %%
+imshow(new_extract_flont_img(img, depth, merged_mask, 5))
 # %%
