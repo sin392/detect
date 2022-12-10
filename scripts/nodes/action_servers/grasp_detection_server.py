@@ -135,20 +135,20 @@ class GraspDetectionServer:
                     )
                 )
 
-                if not is_valid:
+                # TODO: is_frameinの判定冗長なので要整理
+                include_any_frameout = not np.any([cnd.is_framein for cnd in valid_candidates])
+                if include_any_frameout or not is_valid:
                     continue
 
-                best_cand = candidates[target_index]
+                best_cand = valid_candidates[target_index]
                 # 3d projection
                 insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(center, center_d_mm)
                 length_to_center = max([pt.z for pt in insertion_points_c]) - c_3d_c_on_surface.z
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
-
                 insertion_points_and_center_w = self.tf_client.transform_points(header, (*insertion_points_c, c_3d_c))
                 insertion_points_w = insertion_points_and_center_w[:-1]
                 c_3d_w = insertion_points_and_center_w[-1]
-
                 c_orientation = self.pose_estimator.get_orientation(depth, mask)
                 bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
 

@@ -17,12 +17,14 @@
     <arg name="el_bw_depth_th" default="0." />
     <arg name="robot_name" default="myrobot" />
     <arg name="debug" default="false" />
-    <arg name="image_topic" default="/$(arg robot_name)/body_camera/color/image_raw" />
-    <arg name="depth_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/image_raw" />
-    <arg name="image_info_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/camera_info" />
-    <arg name="depth_info_topic" default="/$(arg robot_name)/body_camera/aligned_depth_to_color/camera_info" />
-    <arg name="seg_topic" default="/$(arg robot_name)/body_camera/color/image_raw/segmented_img" />
-    <arg name="candidates_img_topic" default="/$(arg robot_name)/body_camera/color/image_raw/candidates_img" />
+
+    <arg name="used_camera" default="body_camera" />
+    <arg name="image_topic" default="/$(arg robot_name)/$(arg used_camera)/color/image_raw" />
+    <arg name="depth_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/image_raw" />
+    <arg name="image_info_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/camera_info" />
+    <arg name="depth_info_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/camera_info" />
+    <arg name="seg_topic" default="/$(arg robot_name)/$(arg used_camera)/color/image_raw/segmented_img" />
+    <arg name="candidates_img_topic" default="/$(arg robot_name)/$(arg used_camera)/color/image_raw/candidates_img" />
 
 
     <!-- for realsense-viewer bags -->
@@ -30,8 +32,8 @@
     <remap from="/device_0/sensor_1/Color_0/info/camera_info" to="$(arg image_info_topic)" />
     <remap from="/device_0/sensor_0/Depth_0/image/data" to="$(arg depth_topic)" />
     <remap from="/device_0/sensor_0/Depth_0/info/camera_info" to="$(arg depth_info_topic)" /> -->
-    <!-- <remap from="/device_0/sensor_0/Depth_0/depth/data" to="/body_camera/depth/image_raw" /> -->
-    <!-- <remap from="/device_0/sensor_0/Depth_0/info/camera_info" to="/body_camera/depth/camera_info" /> -->
+    <!-- <remap from="/device_0/sensor_0/Depth_0/depth/data" to="/$(arg used_camera)/depth/image_raw" /> -->
+    <!-- <remap from="/device_0/sensor_0/Depth_0/info/camera_info" to="/$(arg used_camera)/depth/camera_info" /> -->
 
     <param name="use_sim_time" value="true" />
 
