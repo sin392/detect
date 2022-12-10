@@ -2,7 +2,7 @@ from colorsys import hsv_to_rgb
 
 import cv2
 import numpy as np
-from const import UINT16MAX
+from modules.const import UINT16MAX
 from scipy.ndimage import map_coordinates
 
 
