@@ -48,7 +48,7 @@ def compute_optimal_depth_thresh(depth, whole_mask, n):
     return rounded_optimal_depth_thresh
 
 
-def extract_flont_mask_with_thresh(depth, whole_mask, thresh, n):
+def extract_flont_mask_with_thresh(depth, thresh, n):
     # flont_mask = np.where(depth <= thresh, whole_mask, 0).astype("uint8")
     flont_mask = np.where(depth <= thresh, 255, 0).astype("uint8")
     # 欠損ピクセルの補完
@@ -62,7 +62,7 @@ def extract_flont_mask_with_thresh(depth, whole_mask, thresh, n):
 
 def extract_flont_img(img, depth, whole_mask, n):
     optimal_depth_thresh = compute_optimal_depth_thresh(depth, whole_mask, n)
-    flont_mask = extract_flont_mask_with_thresh(depth, whole_mask, optimal_depth_thresh, n)
+    flont_mask = extract_flont_mask_with_thresh(depth, optimal_depth_thresh, n)
     result_img = cv2.bitwise_and(img, img, mask=flont_mask)
 
     return result_img

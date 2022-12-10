@@ -94,7 +94,7 @@ class GraspDetectionServer:
                 merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0).astype("uint8")
                 merged_mask_msg = self.bridge.cv2_to_imgmsg(merged_mask)
                 opt_depth_th = self.cdt_client.compute(depth_msg, merged_mask_msg, n=5)
-                flont_mask = extract_flont_mask_with_thresh(depth, merged_mask, opt_depth_th, n=5)
+                flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=5)
                 # flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
                 flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
                 vis_base_img_msg = self.bridge.cv2_to_imgmsg(flont_img)
@@ -111,8 +111,8 @@ class GraspDetectionServer:
                 # TODO: しきい値で切り出したマスク内に含まれないインスタンスはスキップ
                 # TODO: スキップされてもcenterは描画したい
                 instance_min_d = depth[mask > 0].min()
-                # if instance_min_d > opt_depth_th:
-                #     continue
+                if instance_min_d > opt_depth_th:
+                    continue
 
                 center = np.array(instance_msg.center)
                 center_d_mm = depth[center[1], center[0]]
