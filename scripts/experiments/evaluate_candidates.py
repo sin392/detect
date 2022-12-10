@@ -157,10 +157,10 @@ imshow(crop(candidate_img_4, center, 160))
 
 
 class GraspCandidateElement:
-    def __init__(self, depth, min_depth, max_depth, contour, center, edge, finger_radius, insertion_score_thresh=0.5, contact_score_thresh=0.5, bw_depth_score_thresh=0):
+    def __init__(self, depth, contour, center, edge, finger_radius, insertion_score_thresh=0.2, contact_score_thresh=0.2, bw_depth_score_thresh=0.2):
         self.center = center
         self.insertion_point = edge
-        # self.intersection_point = self.compute_intersection_point(contour)
+        self.intersection_point = self.compute_intersection_point(contour)
 
         self.contact_point = None
         self.contact_score = 0
@@ -170,15 +170,17 @@ class GraspCandidateElement:
 
         # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
         # 挿入点の評価
-        # intersection_depth = depth[self.intersection_point[::-1]]
-        # mean_min_depth = np.int0(np.round(np.mean((min_depth, intersection_depth))))
-        # mean_max_depth = np.int0(np.round(np.mean((max_depth, intersection_depth))))
+        _, intersection_max_depth, intersection_mean_depth = compute_depth_profile_in_finger_area(depth, self.intersection_point, finger_radius)
+        min_depth = intersection_mean_depth
+        max_depth = max(intersection_max_depth, depth[edge[1], edge[0]])
+        # self.insertion_score = self.compute_point_score(self.insertion_point, depth, min_depth, max_depth, finger_radius)
         self.insertion_score = self.compute_point_score(self.insertion_point, depth, min_depth, max_depth, finger_radius)
         if self.insertion_score < insertion_score_thresh:
             return
         # 接触点の計算と評価
         self.intersection_point = self.compute_intersection_point(contour)
         self.contact_point = self.compute_contact_point(finger_radius)
+        # self.contact_score = self.compute_point_score(self.contact_point, depth, min_depth, max_depth, finger_radius)
         self.contact_score = self.compute_point_score(self.contact_point, depth, min_depth, max_depth, finger_radius)
         if self.contact_score < contact_score_thresh:
             return
@@ -256,7 +258,7 @@ class GraspCandidateElement:
         return img
 
 
-gce = GraspCandidateElement(depth, instance_min_depth, objects_max_depth, contour, center, edge, finger_radius)
+gce = GraspCandidateElement(depth, contour, center, edge, finger_radius)
 print(gce.get_points())
 print(gce.get_scores())
 print("total score:", gce.total_score)
@@ -269,11 +271,11 @@ imshow(crop(test_img, center, 160))
 
 
 class GraspCandidate:
-    def __init__(self, depth, min_depth, max_depth, contour, center, edges, finger_radius, hand_radius,
-                 elements_score_thresh=0, center_diff_score_thresh=0, el_insertion_score_thresh=0.5, el_contact_score_thresh=0.5, el_bw_depth_score_thresh=0):
+    def __init__(self, depth, contour, center, edges, finger_radius, hand_radius,
+                 elements_score_thresh=0, center_diff_score_thresh=0, el_insertion_score_thresh=0.2, el_contact_score_thresh=0.2, el_bw_depth_score_thresh=0.2):
         self.center = center
         self.elements = [
-            GraspCandidateElement(depth, min_depth, max_depth, contour, center, edge,
+            GraspCandidateElement(depth, contour, center, edge,
                                   finger_radius, el_insertion_score_thresh,
                                   el_contact_score_thresh, el_bw_depth_score_thresh)
             for edge in edges]
@@ -337,7 +339,7 @@ class GraspCandidate:
         return img
 
 
-gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius, 0, 0.5)
+gc = GraspCandidate(depth, contour, center, points, finger_radius, hand_radius, 0, 0.5)
 print(gc.get_insertion_points())
 print(gc.get_contact_points())
 print(gc.get_scores())
@@ -351,22 +353,19 @@ candidate_img = img.copy()
 total_spent_time = 0
 for i, obj in enumerate(objects):
     candidates = obj["candidates"]
-    mask = obj["mask"]
     contour = obj["contour"]
     center = obj["center"]
-    instance_min_depth = depth[mask > 0].min()
 
     gc_list = []
     best_score = 0
     best_index = 0
     for j, points in enumerate(candidates):
         start = time()
-        gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius,
-                            0, 0, 0.5, 0.5, 0.5)
+        gc = GraspCandidate(depth, contour, center, points, finger_radius, hand_radius, 0, 0, 0.2, 0.2, 0.2)
         spent_time = time() - start
         total_spent_time += spent_time
         if gc.is_valid:
-            print(i + j, gc.total_score, instance_min_depth, spent_time)
+            print(i + j, gc.total_score, spent_time)
             print([[x for x in el.get_scores().values()] for el in gc.elements])
             # validなcandidateの多さはインスタンスの優先順位決定に使えそう
             gc_list.append(gc)
@@ -389,7 +388,7 @@ imshow(candidate_img)
 
 
 def func(x):
-    return GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, candidates[x], finger_radius, hand_radius)
+    return GraspCandidate(depth, contour, center, candidates[x], finger_radius, hand_radius)
 
 
 # candidates単位で並列化するだけでもだいたい
@@ -438,20 +437,18 @@ imshow(candidate_img)
 # 並列化による高速化ver2 (共有プロセスプールの使用)
 
 
-def sub_task(min_depth, contour, center, candidate):
-    global objects_max_depth, finger_radius, hand_radius
-    return GraspCandidate(depth, min_depth, objects_max_depth, contour, center, candidate, finger_radius, hand_radius)
+def sub_task(contour, center, candidate):
+    global finger_radius, hand_radius
+    return GraspCandidate(depth, contour, center, candidate, finger_radius, hand_radius)
 
 
 def task(pool, obj):
     global depth
-    mask = obj["mask"]
     contour = obj["contour"]
     center = obj["center"]
     candidates = obj["candidates"]
-    instance_min_depth = depth[mask > 0].min()
 
-    args = [(instance_min_depth, contour, center, candidate) for candidate in candidates]
+    args = [(contour, center, candidate) for candidate in candidates]
     gc_list = pool.starmap(sub_task, args)
     return gc_list
 
@@ -540,27 +537,24 @@ axes[1].plot(res)
 # 整理したクラスのテスト
 
 
-def new_sub_task(min_depth, contour, center, candidate):
-    global finger_radius, hand_radius, depth, objects_max_depth
+def new_sub_task(contour, center, candidate):
+    global finger_radius, hand_radius, depth
     return NewGraspCandidate(
         hand_radius_px=hand_radius, finger_radius_px=finger_radius,
         angle=0, depth=depth, contour=contour,
         center=center, insertion_points=candidate,
-        min_d=min_depth, max_d=objects_max_depth,
         elements_th=0, center_diff_th=0,
-        el_insertion_th=0.5, el_contact_th=0.5,
-        el_bw_depth_th=0.1)
+        el_insertion_th=0.2, el_contact_th=0.2,
+        el_bw_depth_th=0.2)
 
 
 def new_task(pool, obj):
     global depth
-    mask = obj["mask"]
     contour = obj["contour"]
     center = obj["center"]
     candidates = obj["candidates"]
-    instance_min_depth = depth[mask > 0].min()
 
-    args = [(instance_min_depth, contour, center, candidate) for candidate in candidates]
+    args = [(contour, center, candidate) for candidate in candidates]
     gc_list = pool.starmap(new_sub_task, args)
     return gc_list
 

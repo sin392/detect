@@ -14,7 +14,7 @@ ImagePointUVD = Tuple[ImagePointUV, Mm]  # [px, px, mm]
 class GraspCandidateElement:
     # ハンド情報、画像情報、局所的情報（ポイント、値）、しきい値
     def __init__(self, hand_radius_px: Px, finger_radius_px: Px, depth: Image, contour: np.ndarray,
-                 center: ImagePointUV, insertion_point: ImagePointUV, min_d: Mm, max_d: Mm,
+                 center: ImagePointUV, insertion_point: ImagePointUV,
                  insertion_th: float, contact_th: float, bw_depth_th: float):
         self.hand_radius_px = hand_radius_px
         self.finger_radius_px = finger_radius_px
@@ -51,13 +51,16 @@ class GraspCandidateElement:
 
         # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
         # 挿入点の評価
+        self.intersection_point = self._compute_intersection_point(contour)
+        _, intersection_max_d, intersection_mean_d = compute_depth_profile_in_finger_area(depth, self.intersection_point, finger_radius_px)
+        min_d = intersection_mean_d
+        max_d = max(intersection_max_d, self.insertion_point_d)
         self.insertion_score = self._compute_point_score(
             depth, min_d, max_d, self.insertion_point)
         if self.insertion_score < insertion_th:
             self.debug_infos.append(("insertion_score", self.insertion_score))
             return
         # 接触点の計算と評価
-        self.intersection_point = self._compute_intersection_point(contour)
         self.contact_point = self._compute_contact_point(
             self.intersection_point)
         self.contact_score = self._compute_point_score(
@@ -167,7 +170,7 @@ class GraspCandidateElement:
 
 class GraspCandidate:
     def __init__(self, hand_radius_px, finger_radius_px, angle, depth, contour, center, insertion_points,
-                 min_d, max_d, elements_th, center_diff_th, el_insertion_th, el_contact_th, el_bw_depth_th):
+                 elements_th, center_diff_th, el_insertion_th, el_contact_th, el_bw_depth_th):
         self.hand_radius_px = hand_radius_px
         self.finger_radius_px = finger_radius_px
         self.angle = angle
@@ -175,7 +178,7 @@ class GraspCandidate:
         self.elements = [
             GraspCandidateElement(
                 hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, depth=depth, contour=contour,
-                center=center, insertion_point=insertion_point, min_d=min_d, max_d=max_d,
+                center=center, insertion_point=insertion_point,
                 insertion_th=el_insertion_th, contact_th=el_contact_th, bw_depth_th=el_contact_th
             ) for insertion_point in insertion_points
         ]
@@ -312,7 +315,7 @@ class GraspDetector:
             finger_v = np.dot(finger_v, self.base_rmat)
         return insertion_points
 
-    def detect(self, center: ImagePointUV, depth: Image, contour: np.ndarray, min_d: Mm, max_d: Mm) -> List[GraspCandidate]:
+    def detect(self, center: ImagePointUV, depth: Image, contour: np.ndarray) -> List[GraspCandidate]:
         # 単位変換
         center_d = depth[center[1], center[0]]
         hand_radius_px = self._convert_mm_to_px(self.hand_radius_mm, center_d)
@@ -328,7 +331,6 @@ class GraspDetector:
             angle = self.unit_angle * i
             cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
                                  depth=depth, contour=contour, center=center, insertion_points=insertion_points,
-                                 min_d=min_d, max_d=max_d,
                                  elements_th=self.elements_th, center_diff_th=self.center_diff_th,
                                  el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
                                  el_bw_depth_th=self.el_bw_depth_th

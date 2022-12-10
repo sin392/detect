@@ -104,11 +104,8 @@ class GraspDetectionServer:
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
                 # bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
-                # TODO: intersectionからの計算も検討
-                min_d, max_d = depth[mask > 0].min(), depth.max()  # max_dは全体から算出
                 # detect candidates
-                candidates = self.grasp_detector.detect(center=center, depth=depth,
-                                                        contour=contour, min_d=min_d, max_d=max_d)
+                candidates = self.grasp_detector.detect(center=center, depth=depth, contour=contour)
                 if len(candidates) == 0:
                     continue
                 # select best candidate
