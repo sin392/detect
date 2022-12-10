@@ -12,9 +12,9 @@
     <arg name="hand_mount_rotation" default="45" />
     <arg name="elements_th" default="0." />
     <arg name="center_diff_th" default="0." />
-    <arg name="el_insertion_th" default="0.5" />
-    <arg name="el_contact_th" default="0.5" />
-    <arg name="el_bw_depth_th" default="0." />
+    <arg name="el_insertion_th" default="0.2" />
+    <arg name="el_contact_th" default="0.2" />
+    <arg name="el_bw_depth_th" default="0.2" />
     <arg name="robot_name" default="myrobot" />
     <arg name="debug" default="false" />
 
