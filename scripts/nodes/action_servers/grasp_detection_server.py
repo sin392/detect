@@ -24,7 +24,8 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int, hand_mount_rotation: int,
+    def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int, 
+                 hand_mount_rotation: int, approach_coef: float,
                  elements_th: float, center_diff_th: float, el_insertion_th: float, el_contact_th: float, el_bw_depth_th: float,
                  info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
         rospy.init_node(name, log_level=rospy.INFO)
@@ -35,6 +36,7 @@ class GraspDetectionServer:
         self.hand_radius_mm = hand_radius_mm  # length between center and edge
         self.finger_radius_mm = finger_radius_mm
         self.hand_mount_rotation = hand_mount_rotation
+        self.approach_coef = approach_coef
         self.elements_th = elements_th
         self.center_diff_th = center_diff_th
         self.el_insertion_th = el_insertion_th
@@ -157,7 +159,10 @@ class GraspDetectionServer:
                 # 3d projection
                 insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(center, center_d_mm)
-                length_to_center = max([pt.z for pt in insertion_points_c]) - c_3d_c_on_surface.z
+                bottom_z = max([pt.z for pt in insertion_points_c])
+                top_z = c_3d_c_on_surface.z
+                # length_to_center = bottom_z - top_z
+                length_to_center = (bottom_z - top_z) * self.approach_coef # インスタンス頂点からのアプローチ距離
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
                 insertion_points_and_center_w = self.tf_client.transform_points(header, (*insertion_points_c, c_3d_c))
                 insertion_points_w = insertion_points_and_center_w[:-1]
@@ -207,12 +212,12 @@ if __name__ == "__main__":
     hand_radius_mm = rospy.get_param("hand_radius_mm")
     finger_radius_mm = rospy.get_param("finger_radius_mm")
     hand_mount_rotation = rospy.get_param("hand_mount_rotation")
+    approach_coef = rospy.get_param("approach_coef")
     elements_th = rospy.get_param("elements_th")
     center_diff_th = rospy.get_param("center_diff_th")
     el_insertion_th = rospy.get_param("el_insertion_th")
     el_contact_th = rospy.get_param("el_contact_th")
     el_bw_depth_th = rospy.get_param("el_bw_depth_th")
-    hand_mount_rotation = rospy.get_param("hand_mount_rotation")
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
     enable_candidate_filter = rospy.get_param("enable_candidate_filter")
@@ -225,6 +230,7 @@ if __name__ == "__main__":
         hand_radius_mm=hand_radius_mm,
         finger_radius_mm=finger_radius_mm,
         hand_mount_rotation=hand_mount_rotation,
+        approach_coef=approach_coef,
         elements_th=elements_th,
         center_diff_th=center_diff_th,
         el_insertion_th=el_insertion_th,

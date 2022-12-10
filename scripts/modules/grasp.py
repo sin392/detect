@@ -3,12 +3,7 @@ from typing import List, Tuple
 import cv2
 import numpy as np
 from modules.image import extract_depth_between_two_points
-
-Px = float  # mmから変換した場合などは少数値になる
-Mm = float
-Image = np.ndarray
-ImagePointUV = Tuple[int, int]  # [px, px, mm]
-ImagePointUVD = Tuple[ImagePointUV, Mm]  # [px, px, mm]
+from modules.type import Px, Mm, Image, ImagePointUV, ImagePointUVD
 
 
 class GraspCandidateElement:
