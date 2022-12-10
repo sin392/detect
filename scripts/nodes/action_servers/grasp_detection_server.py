@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from time import time
 from typing import List
 
 import numpy as np
@@ -79,6 +80,7 @@ class GraspDetectionServer:
         stamp = img_msg.header.stamp
         header = Header(frame_id=frame_id, stamp=stamp)
         try:
+            start_time = time()
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
             instances = self.is_client.predict(img_msg)
             # TODO: compute n by camera distance
@@ -86,8 +88,8 @@ class GraspDetectionServer:
             if self.cdt_client:
                 opt_depth_th = self.cdt_client.compute(depth_msg, n=30)
                 rospy.loginfo(opt_depth_th)
-            objects: List[DetectedObject] = []
-            valid_candidates_list: List[Candidates] = []
+            objects: List[DetectedObject] = []  # 空のものは省く
+            candidates_list: List[Candidates] = []  # 空のものも含む
             for instance_msg in instances:
                 mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
                 # ignore other than instances are located on top of stacks
@@ -111,13 +113,12 @@ class GraspDetectionServer:
                     continue
                 # select best candidate
                 valid_candidates = [cnd for cnd in candidates if cnd.is_valid] if self.enable_candidate_filter else candidates
-                if len(valid_candidates) == 0:
-                    continue
-
+                is_valid = len(valid_candidates) > 0
                 valid_scores = [cnd.total_score for cnd in valid_candidates]
-                target_index = np.argmax(valid_scores) if len(valid_scores) else 0
-                best_cand = valid_candidates[target_index]
-                valid_candidates_list.append(
+                target_index = np.argmax(valid_scores) if is_valid else 0
+
+                # candidates_list は空のものも含む
+                candidates_list.append(
                     Candidates(
                         candidates=[
                             Candidate(
@@ -134,6 +135,10 @@ class GraspDetectionServer:
                     )
                 )
 
+                if not is_valid:
+                    continue
+
+                best_cand = candidates[target_index]
                 # 3d projection
                 insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(center, center_d_mm)
@@ -173,9 +178,11 @@ class GraspDetectionServer:
                 ))
 
             # validなもの以外も中心表示したい
-            self.visualize_client.visualize_candidates(img_msg, valid_candidates_list)
+            self.visualize_client.visualize_candidates(img_msg, candidates_list)
             if self.dbg_info_publisher:
-                self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, valid_candidates_list))
+                self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))
+            spent = time() - start_time
+            print(f"stamp: {stamp.to_time()}, spent: {spent:.3f}, objects: {len(objects)} ({len(instances)})")
             self.server.set_succeeded(GraspDetectionResult(header, objects))
 
         except Exception as err:

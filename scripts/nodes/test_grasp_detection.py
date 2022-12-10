@@ -24,11 +24,10 @@ class GraspDetectionTestClient:
         self.ts.registerCallback(self.callback)
 
     def callback(self, img_msg: Image, depth_msg: Image):
-        img_time = img_msg.header.stamp.to_time()
-        depth_time = depth_msg.header.stamp.to_time()
+        # img_time = img_msg.header.stamp.to_time()
+        # depth_time = depth_msg.header.stamp.to_time()
         try:
-            objects = self.gd_client.detect(img_msg, depth_msg)
-            rospy.loginfo(f"img: {img_time}, depth: {depth_time}, objects: {len(objects)}")
+            _ = self.gd_client.detect(img_msg, depth_msg)
         except Exception as err:
             rospy.logerr(err)
 
