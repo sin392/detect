@@ -2,6 +2,7 @@
 from time import time
 from typing import List
 
+import cv2
 import numpy as np
 import rospy
 from actionlib import SimpleActionServer
@@ -12,7 +13,7 @@ from detect.msg import (Candidate, Candidates, DetectedObject,
 from geometry_msgs.msg import Point, Pose, PoseStamped
 from modules.const import UINT16MAX
 from modules.grasp import GraspDetector
-from modules.image import extract_flont_img
+from modules.image import extract_flont_mask_with_thresh
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
                                         InstanceSegmentationClient, TFClient,
                                         VisualizeClient)
@@ -93,11 +94,14 @@ class GraspDetectionServer:
                 merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0).astype("uint8")
                 min_d = depth[merged_mask > 0].min()
                 opt_depth_th = self.cdt_client.compute(depth_msg, min_d=min_d, n=5)
-                vis_base_img = extract_flont_img(img, depth, merged_mask, n=5)
+                flont_mask = extract_flont_mask_with_thresh(depth, merged_mask, opt_depth_th, n=5)
+                flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
+                vis_base_img_msg = self.bridge.cv2_to_imgmsg(flont_img)
+
                 rospy.loginfo(opt_depth_th)
             else:
                 opt_depth_th = UINT16MAX
-                vis_base_img = img
+                vis_base_img_msg = img_msg
             objects: List[DetectedObject] = []  # 空のものは省く
             candidates_list: List[Candidates] = []  # 空のものも含む
             for instance_msg, mask in zip(instances, masks):
@@ -185,7 +189,6 @@ class GraspDetectionServer:
                     length_to_center=length_to_center
                 ))
 
-            vis_base_img_msg = self.bridge.cv2_to_imgmsg(vis_base_img)
             self.visualize_client.visualize_candidates(vis_base_img_msg, candidates_list)
             if self.dbg_info_publisher:
                 self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))

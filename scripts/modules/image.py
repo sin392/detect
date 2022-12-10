@@ -28,6 +28,7 @@ def compute_optimal_depth_thresh(depth, min_d, n):
     ddi = trasnform_ddi(depth, n)
     hist_without_mask = cv2.calcHist([ddi], channels=[0], mask=None, histSize=[UINT16MAX], ranges=[0, UINT16MAX - 1])
     min_ddi, max_ddi = ddi.min(), ddi.max()
+
     h_list = []
     for i in range(min_ddi, max_ddi + 1):
         t1 = np.sum(hist_without_mask[i - n:i + n + 1])
@@ -39,8 +40,9 @@ def compute_optimal_depth_thresh(depth, min_d, n):
     optimal_ddi_thresh = sorted_h[-1]
     # ddiしきい値をdepthしきい値に変換
     optimal_depth_thresh = np.mean(depth[ddi <= optimal_ddi_thresh])
+    rounded_optimal_depth_thresh = np.int0(np.round(optimal_depth_thresh))
 
-    return optimal_depth_thresh
+    return rounded_optimal_depth_thresh
 
 
 def extract_flont_mask_with_thresh(depth, whole_mask, thresh, n):
@@ -54,7 +56,8 @@ def extract_flont_mask_with_thresh(depth, whole_mask, thresh, n):
 
 
 def extract_flont_img(img, depth, whole_mask, n):
-    optimal_depth_thresh = compute_optimal_depth_thresh(depth, n)
+    min_d = depth[whole_mask > 0].min()
+    optimal_depth_thresh = compute_optimal_depth_thresh(depth, min_d, n)
     flont_mask = extract_flont_mask_with_thresh(depth, whole_mask, optimal_depth_thresh, n)
     result_img = cv2.bitwise_and(img, img, mask=flont_mask)
 
