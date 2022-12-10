@@ -2,8 +2,9 @@ from colorsys import hsv_to_rgb
 
 import cv2
 import numpy as np
-from modules.const import UINT16MAX
 from scipy.ndimage import map_coordinates
+
+from modules.const import UINT16MAX
 
 
 def gen_color_palette(n):
@@ -13,7 +14,7 @@ def gen_color_palette(n):
     return rgb_array
 
 
-def trasnform_ddi(depth, n):
+def transform_ddi(depth, n):
     mask = np.ones((n, n)).astype('uint8')  # erodeで使用するmaskはuint8
     # mask[n//2, n//2] = 0
     mask[1:-1, 1:-1] = 0  # 外周部以外は０に
@@ -25,8 +26,9 @@ def trasnform_ddi(depth, n):
 
 def compute_optimal_depth_thresh(depth, whole_mask, n):
     # ddiヒストグラムからddiしきい値を算出（物体のエッジに相当）
-    ddi = trasnform_ddi(depth, n)
-    hist_without_mask = cv2.calcHist([ddi], channels=[0], mask=None, histSize=[UINT16MAX], ranges=[0, UINT16MAX - 1])
+    ddi = transform_ddi(depth, n)
+    hist_without_mask = cv2.calcHist([ddi], channels=[0], mask=None, histSize=[
+                                     UINT16MAX], ranges=[0, UINT16MAX - 1])
     depth_values_on_mask = depth[whole_mask > 0]
     ddi_values_on_mask = ddi[whole_mask > 0]
     min_ddi, max_ddi = ddi_values_on_mask.min(), ddi_values_on_mask.max()
@@ -41,7 +43,8 @@ def compute_optimal_depth_thresh(depth, whole_mask, n):
     sorted_h = np.argsort(h_list)  # argsortはデフォルト昇順
     optimal_ddi_thresh = sorted_h[-1] + min_ddi
     # ddiしきい値をdepthしきい値に変換
-    optimal_depth_thresh = np.max(depth_values_on_mask[ddi_values_on_mask <= optimal_ddi_thresh])
+    optimal_depth_thresh = np.max(
+        depth_values_on_mask[ddi_values_on_mask <= optimal_ddi_thresh])
     # optimal_depth_thresh = np.max(depth[ddi >= optimal_ddi_thresh])
     rounded_optimal_depth_thresh = np.int0(np.round(optimal_depth_thresh))
 
@@ -52,7 +55,8 @@ def extract_flont_mask_with_thresh(depth, thresh, n):
     # flont_mask = np.where(depth <= thresh, whole_mask, 0).astype("uint8")
     flont_mask = np.where(depth <= thresh, 255, 0).astype("uint8")
     # 欠損ピクセルの補完
-    closing_flont_mask = cv2.morphologyEx(flont_mask, cv2.MORPH_CLOSE, np.ones((n, n), np.uint8))
+    closing_flont_mask = cv2.morphologyEx(
+        flont_mask, cv2.MORPH_CLOSE, np.ones((n, n), np.uint8))
     # 膨張によりはみ出したピクセルの除去
     # final_flont_mask = np.where(whole_mask > 0, closing_flont_mask, 0)
     final_flont_mask = closing_flont_mask
