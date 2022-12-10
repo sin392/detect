@@ -10,7 +10,9 @@ from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionDebugInfo,
                         GraspDetectionGoal, GraspDetectionResult, PointTuple2D)
 from geometry_msgs.msg import Point, Pose, PoseStamped
+from modules.const import UINT16MAX
 from modules.grasp import GraspDetector
+from modules.image import extract_flont_img
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
                                         InstanceSegmentationClient, TFClient,
                                         VisualizeClient)
@@ -81,22 +83,31 @@ class GraspDetectionServer:
         header = Header(frame_id=frame_id, stamp=stamp)
         try:
             start_time = time()
+            img = self.bridge.imgmsg_to_cv2(img_msg)
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
             instances = self.is_client.predict(img_msg)
+            # TODO: depthしきい値を求めるためにmerged_maskが必要だが非効率なので要改善
+            masks = [self.bridge.imgmsg_to_cv2(instance_msg.mask) for instance_msg in instances]
             # TODO: compute n by camera distance
-            opt_depth_th = None
             if self.cdt_client:
-                opt_depth_th = self.cdt_client.compute(depth_msg, n=30)
+                merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0).astype("uint8")
+                min_d = depth[merged_mask > 0].min()
+                opt_depth_th = self.cdt_client.compute(depth_msg, min_d=min_d, n=5)
+                vis_base_img = extract_flont_img(img, depth, merged_mask, n=5)
                 rospy.loginfo(opt_depth_th)
+            else:
+                opt_depth_th = UINT16MAX
+                vis_base_img = img
             objects: List[DetectedObject] = []  # 空のものは省く
             candidates_list: List[Candidates] = []  # 空のものも含む
-            for instance_msg in instances:
-                mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
+            for instance_msg, mask in zip(instances, masks):
+                # mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
                 # ignore other than instances are located on top of stacks
-                if opt_depth_th is not None:
-                    masked_depth = depth * mask
-                    if np.min(masked_depth[masked_depth > 0]) > opt_depth_th:
-                        continue
+                # TODO: しきい値で切り出したマスク内に含まれないインスタンスはスキップ
+                # TODO: スキップされてもcenterは描画したい
+                instance_max_d = depth[mask > 0].max()
+                if instance_max_d > opt_depth_th:
+                    continue
 
                 center = np.array(instance_msg.center)
                 center_d_mm = depth[center[1], center[0]]
@@ -174,8 +185,8 @@ class GraspDetectionServer:
                     length_to_center=length_to_center
                 ))
 
-            # validなもの以外も中心表示したい
-            self.visualize_client.visualize_candidates(img_msg, candidates_list)
+            vis_base_img_msg = self.bridge.cv2_to_imgmsg(vis_base_img)
+            self.visualize_client.visualize_candidates(vis_base_img_msg, candidates_list)
             if self.dbg_info_publisher:
                 self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))
             spent = time() - start_time

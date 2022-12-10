@@ -6,7 +6,7 @@ from cv_bridge import CvBridge
 from detect.msg import (ComputeDepthThresholdAction,
                         ComputeDepthThresholdActionGoal,
                         ComputeDepthThresholdResult)
-from modules.image import get_optimal_hist_th
+from modules.image import compute_optimal_depth_thresh
 
 
 class ComputeDepthThresholdServer:
@@ -24,9 +24,10 @@ class ComputeDepthThresholdServer:
         try:
             # img = self.bridge.imgmsg_to_cv2(img_msg)
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
+            min_d = goal.min_d
             n = goal.n
 
-            optimal_th = get_optimal_hist_th(depth, n)[0]
+            optimal_th = compute_optimal_depth_thresh(depth, min_d, n)
             rospy.loginfo(f"depth_theshold: {optimal_th}")
             # mask_1c = np.where(depth < optimal_th, 1, 0)[:, :, np.newaxis]
 

@@ -2,6 +2,7 @@ from colorsys import hsv_to_rgb
 
 import cv2
 import numpy as np
+from const import UINT16MAX
 from scipy.ndimage import map_coordinates
 
 
@@ -12,31 +13,52 @@ def gen_color_palette(n):
     return rgb_array
 
 
-def get_optimal_hist_th(depth: np.ndarray, n: int):
-    valid_depth_values = depth[depth > 0]
-    min_v, max_v = np.min(valid_depth_values), np.max(valid_depth_values)
-    hist = cv2.calcHist(depth, channels=[0], mask=None, histSize=[
-                        65536], ranges=[0, 65535])
-    h_list = np.array([])
-    for i in range(min_v, max_v + 1):
-        t1 = np.sum(hist[i - n:i + n + 1])
-        t2 = np.sum(hist[i - n * 2:i - n])
-        t3 = np.sum(hist[i + n + 1:i + n * 2 + 1])
+def trasnform_ddi(depth, n):
+    mask = np.ones((n, n)).astype('uint8')  # erodeで使用するmaskはuint8
+    # mask[n//2, n//2] = 0
+    mask[1:-1, 1:-1] = 0  # 外周部以外は０に
+    depth_min = cv2.erode(depth, mask, iterations=1)  # 最小値フィルタリング
+    ddi = np.abs(depth.astype('int32') -
+                 depth_min.astype('int32')).astype('uint16')
+    return ddi
+
+
+def compute_optimal_depth_thresh(depth, min_d, n):
+    # ddiヒストグラムからddiしきい値を算出（物体のエッジに相当）
+    ddi = trasnform_ddi(depth, n)
+    hist_without_mask = cv2.calcHist([ddi], channels=[0], mask=None, histSize=[UINT16MAX], ranges=[0, UINT16MAX - 1])
+    min_ddi, max_ddi = ddi.min(), ddi.max()
+    h_list = []
+    for i in range(min_ddi, max_ddi + 1):
+        t1 = np.sum(hist_without_mask[i - n:i + n + 1])
+        t2 = np.sum(hist_without_mask[i - n * 2:i - n])
+        t3 = np.sum(hist_without_mask[i + n + 1:i + n * 2 + 1])
         res = t1 - t2 - t3
-        h_list = np.append(h_list, res)
-    sorted_h = np.argsort(h_list) + min_v
-    return sorted_h
+        h_list.append(res)
+    sorted_h = np.argsort(h_list) + min_d  # argsortはデフォルト昇順
+    optimal_ddi_thresh = sorted_h[-1]
+    # ddiしきい値をdepthしきい値に変換
+    optimal_depth_thresh = np.mean(depth[ddi <= optimal_ddi_thresh])
+
+    return optimal_depth_thresh
 
 
-def extract_top_layer(img: np.ndarray, depth: np.ndarray, n: int):
-    th = get_optimal_hist_th(depth, n)[0]
-    flont_depth = np.where(depth < th, depth, 0)
-    flont_depth_3d = np.array([flont_depth] * 3).transpose(1, 2, 0)
-    flont_img = img * (flont_depth_3d / 65535)
-    flont_img = cv2.normalize(
-        flont_img, dst=None, alpha=0,
-        beta=255, norm_type=cv2.NORM_MINMAX).astype('uint8')
-    return flont_img, flont_depth
+def extract_flont_mask_with_thresh(depth, whole_mask, thresh, n):
+    flont_mask = np.where(depth <= thresh, whole_mask, 0).astype("uint8")
+    # 欠損ピクセルの補完
+    closing_flont_mask = cv2.morphologyEx(flont_mask, cv2.MORPH_CLOSE, np.ones((n, n), np.uint8))
+    # 膨張によりはみ出したピクセルの除去
+    final_flont_mask = np.where(whole_mask > 0, closing_flont_mask, 0)
+
+    return final_flont_mask
+
+
+def extract_flont_img(img, depth, whole_mask, n):
+    optimal_depth_thresh = compute_optimal_depth_thresh(depth, n)
+    flont_mask = extract_flont_mask_with_thresh(depth, whole_mask, optimal_depth_thresh, n)
+    result_img = cv2.bitwise_and(img, img, mask=flont_mask)
+
+    return result_img
 
 
 def extract_depth_between_two_points(depth, p1, p2, mode="nearest", order=1):
