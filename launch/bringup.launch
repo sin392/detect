@@ -1,6 +1,7 @@
 <launch>
     <arg name="fps" default="1" />
     <arg name="device" default="cuda:0" />
+    <arg name="show_view" default="true" />
     <arg name="use_bag" default="true" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot_20.bag" />
     <arg name="enable_depth_filter" default="true" />
@@ -63,9 +64,11 @@
     <param name="candidates_img_topic" value="$(arg candidates_img_topic)" />
 
     <!-- <node name="raw_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw" /> -->
-    <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg depth_topic)" />
-    <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg seg_topic)" />
-    <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg candidates_img_topic)" />
+    <group if="$(arg show_view)">
+        <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg depth_topic)" />
+        <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg seg_topic)" />
+        <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg candidates_img_topic)" />
+    </group>
 
     <group if="$(arg use_bag)">
         <node name="rosbag_play" pkg="rosbag" type="play" args="$(arg bag) -r $(arg fps) -l --clock" />
