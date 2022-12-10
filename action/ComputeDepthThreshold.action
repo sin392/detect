@@ -1,5 +1,5 @@
 sensor_msgs/Image depth
-int32 min_d
+sensor_msgs/Image whole_mask
 int32 n
 ---
 int32 threshold

@@ -81,7 +81,7 @@ class ComputeDepthThresholdClient(SimpleActionClient):
         super().__init__(ns, ActionSpec)
         self.wait_for_server()
 
-    def compute(self, depth: Image, min_d: int, n: int) -> int:
-        self.send_goal_and_wait(ComputeDepthThresholdGoal(depth, min_d, n))
+    def compute(self, depth: Image, whole_mask: Image, n: int) -> int:
+        self.send_goal_and_wait(ComputeDepthThresholdGoal(depth, whole_mask, n))
         res = self.get_result().threshold
         return res

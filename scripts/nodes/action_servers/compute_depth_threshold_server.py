@@ -20,14 +20,15 @@ class ComputeDepthThresholdServer:
     def callback(self, goal: ComputeDepthThresholdActionGoal):
         # img_msg = goal.rgb
         depth_msg = goal.depth
+        whole_mask_msg = goal.whole_mask
 
         try:
             # img = self.bridge.imgmsg_to_cv2(img_msg)
             depth = self.bridge.imgmsg_to_cv2(depth_msg)
-            min_d = goal.min_d
+            whole_mask = self.bridge.imgmsg_to_cv2(whole_mask_msg)
             n = goal.n
 
-            optimal_th = compute_optimal_depth_thresh(depth, min_d, n)
+            optimal_th = compute_optimal_depth_thresh(depth, whole_mask, n)
             rospy.loginfo(f"depth_theshold: {optimal_th}")
             # mask_1c = np.where(depth < optimal_th, 1, 0)[:, :, np.newaxis]
 
