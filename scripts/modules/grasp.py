@@ -32,17 +32,21 @@ class GraspCandidateElement:
         self.total_score = 0
         self.is_valid_pre = False
         self.is_valid = False
+        # validnessチェックに引っかかった箇所を追加していく
+        self.debug_infos = []
 
         # 詳細なスコアリングの前に明らかに不正な候補は弾く
         h, w = depth.shape[:2]
         # centerがフレームインしているのは明らか
         self.is_framein = self._check_framein(h, w, self.insertion_point)
         if not self.is_framein:
+            self.debug_infos.append(("framein", self.insertion_point))
             return
 
         self.insertion_point_d = depth[insertion_point[1], insertion_point[0]]
         self.is_valid_pre = self.is_framein and self._precheck_validness()
         if not self.is_valid_pre:
+            self.debug_infos.append(("precheck", (self.center_d, self.insertion_point_d)))
             return
 
         # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
@@ -50,6 +54,7 @@ class GraspCandidateElement:
         self.insertion_score = self._compute_point_score(
             depth, min_d, max_d, self.insertion_point)
         if self.insertion_score < insertion_th:
+            self.debug_infos.append(("insertion_score", self.insertion_score))
             return
         # 接触点の計算と評価
         self.intersection_point = self._compute_intersection_point(contour)
@@ -58,11 +63,13 @@ class GraspCandidateElement:
         self.contact_score = self._compute_point_score(
             depth, min_d, max_d, self.contact_point)
         if self.contact_score < contact_th:
+            self.debug_infos.append(("contact_score", self.contact_score))
             return
         # 挿入点と接触点の間の障害物の評価
         self.bw_depth_score = self._compute_bw_depth_score(
             depth, self.contact_point)
         if self.bw_depth_score < bw_depth_th:
+            self.debug_infos.append(("bw_depth_score", self.bw_depth_score))
             return
         self.total_score = self._compute_total_score()
         # すべてのスコアが基準を満たしたときのみvalid判定
@@ -114,7 +121,8 @@ class GraspCandidateElement:
     def _compute_bw_depth_score(self, depth: Image, contact_point: ImagePointUV) -> float:
         min_d, max_d, mean_d = compute_bw_depth_profile(
             depth, contact_point, self.insertion_point)
-        score = max(0, (mean_d - min_d)) / (max_d - min_d + 1e-6)
+        # score = max(0, (mean_d - min_d)) / (max_d - min_d + 1e-6)
+        score = 1 - ((mean_d - min_d) / (max_d - min_d + 1e-6))
         return score
 
     def _compute_total_score(self) -> float:
@@ -177,20 +185,27 @@ class GraspCandidate:
         self.center_diff_score = 0
         self.total_score = 0
         self.is_valid = False
+        self.debug_infos = []
 
         self.is_framein = self._merge_elements_framein()
+        if not self.is_framein:
+            self.debug_infos.append(("framein", self.insertion_score))
+            return
         self.elements_is_valid = self._merge_elements_validness()
         if not self.elements_is_valid:
+            self.debug_infos.append(("elements_valid", self.elements_is_valid))
             return
 
         # elementの組み合わせ評価
         self.elements_score = self._compute_elements_score()
         if self.elements_score < elements_th:
+            self.debug_infos.append(("elements_score", self.elements_score))
             return
         # contact pointsの中心とマスクの中心のズレの評価
         self.shifted_center = self._compute_contact_points_center()
         self.center_diff_score = self._compute_center_diff_score()
         if self.center_diff_score < center_diff_th:
+            self.debug_infos.append(("center_diff_score", self.center_diff_score))
             return
         # 各スコアの合算
         self.total_score = self._compute_total_score()

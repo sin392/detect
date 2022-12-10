@@ -7,6 +7,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 from modules.const import SAMPLES_PATH
+from modules.grasp import GraspCandidate as NewGraspCandidate
 from modules.grasp import (compute_bw_depth_profile, compute_contact_point,
                            compute_depth_profile_in_finger_area,
                            compute_intersection_between_contour_and_line,
@@ -115,8 +116,8 @@ for points in valid_candidates:
     tmp_cp_scores = []
     for edge in points:
         contact_point = compute_contact_point(contour, center, edge, finger_radius)
-        tmp_ip_scores.append(evaluate_single_insertion_point(depth, edge[::-1], finger_radius, instance_min_depth, objects_max_depth))
-        tmp_cp_scores.append(evaluate_single_insertion_point(depth, contact_point[::-1], finger_radius, instance_min_depth, objects_max_depth))
+        tmp_ip_scores.append(evaluate_single_insertion_point(depth, edge, finger_radius, instance_min_depth, objects_max_depth))
+        tmp_cp_scores.append(evaluate_single_insertion_point(depth, contact_point, finger_radius, instance_min_depth, objects_max_depth))
         cv2.line(candidate_img_3, center, np.int0(edge), (255, 100, 0), 1, cv2.LINE_AA)
         cv2.circle(candidate_img_3, edge, finger_radius, (255, 0, 0), 1, cv2.LINE_AA)
         cv2.circle(candidate_img_3, contact_point, finger_radius, (0, 255, 0), 1, cv2.LINE_AA)
@@ -183,7 +184,6 @@ class GraspCandidateElement:
             return
         # 挿入点と接触点の間の障害物の評価
         self.bw_depth_score = self.compute_bw_depth_score(depth)
-        print(self.insertion_score, self.contact_score, self.bw_depth_score)
         if self.bw_depth_score < bw_depth_score_thresh:
             return
         self.total_score = self.compute_total_score()
@@ -214,19 +214,24 @@ class GraspCandidateElement:
 
     def compute_point_score(self, point, depth, min_depth, max_depth, finger_radius):
         # score =  evaluate_single_insertion_point(depth, point[::-1], finger_radius, min_depth, max_depth)
-        _, _, mean_depth = compute_depth_profile_in_finger_area(depth, point[::-1], finger_radius)
+        _, _, mean_depth = compute_depth_profile_in_finger_area(depth, point, finger_radius)
         score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
         return score
 
     def compute_bw_depth_score(self, depth):
         # score = compute_bw_depth_score(depth, self.contact_point, self.insertion_point, min_depth)
-        min_depth, max_depth, mean_depth = compute_bw_depth_profile(depth, self.contact_point, self.insertion_point)
-        # TOFIX: すべての値が同じ時に０になってしまう
-        score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
-        # if min_depth == mean_depth and mean_depth == max_depth:
-        #     score = 1
-        # else:
-        #     score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
+        local_min_depth, local_max_depth, local_mean_depth = compute_bw_depth_profile(depth, self.contact_point, self.insertion_point)
+        # score = max(0, (mean_depth - min_depth)) / (max_depth - min_depth + 1e-6)
+        # ２点間の線分内の深度差が小さいとスコアが大きくなる
+        score = 1 - ((local_mean_depth - local_min_depth) / (local_max_depth - local_min_depth + 1e-6))
+        # インスタンスにおける深度に対してどれだけの深さがあるかも考慮
+        # coef = min(local_mean_depth, mean_intersection_depth) / max(local_mean_depth, mean_intersection_depth)
+        # _, _, mean_intersection_depth = compute_depth_profile_in_finger_area(depth, self.intersection_point, finger_radius)
+        # min_mean_depth = min(local_min_depth, mean_intersection_depth)
+        # max_mean_depth = max(local_max_depth, mean_intersection_depth)
+        # coef = ((local_mean_depth - min_mean_depth) / (max_mean_depth - min_mean_depth + 10e-6)) ** 2
+        # print(coef)
+        # score = 1 - (((local_mean_depth - local_min_depth) / (local_max_depth - local_min_depth + 1e-6)) * coef)
         return score
 
     def compute_total_score(self):
@@ -357,7 +362,7 @@ for i, obj in enumerate(objects):
     for j, points in enumerate(candidates):
         start = time()
         gc = GraspCandidate(depth, instance_min_depth, objects_max_depth, contour, center, points, finger_radius, hand_radius,
-                            0, 0, 0.5, 0.5, 0)
+                            0, 0, 0.5, 0.5, 0.5)
         spent_time = time() - start
         total_spent_time += spent_time
         if gc.is_valid:
@@ -435,8 +440,7 @@ imshow(candidate_img)
 
 def sub_task(min_depth, contour, center, candidate):
     global objects_max_depth, finger_radius, hand_radius
-    return GraspCandidate(depth, min_depth, objects_max_depth, contour, center, candidate, finger_radius, hand_radius,
-                          0, 0, 0.7, 0.5, 0.3)
+    return GraspCandidate(depth, min_depth, objects_max_depth, contour, center, candidate, finger_radius, hand_radius)
 
 
 def task(pool, obj):
@@ -531,5 +535,63 @@ res = map_coordinates(depth, np.vstack((h, w)), mode="mirror", order=1)
 fig, axes = plt.subplots(1, 2)
 axes[0].imshow(tmp_img)
 axes[1].plot(res)
+
+# %%
+# 整理したクラスのテスト
+
+
+def new_sub_task(min_depth, contour, center, candidate):
+    global finger_radius, hand_radius, depth, objects_max_depth
+    return NewGraspCandidate(
+        hand_radius_px=hand_radius, finger_radius_px=finger_radius,
+        angle=0, depth=depth, contour=contour,
+        center=center, insertion_points=candidate,
+        min_d=min_depth, max_d=objects_max_depth,
+        elements_th=0, center_diff_th=0,
+        el_insertion_th=0.5, el_contact_th=0.5,
+        el_bw_depth_th=0.1)
+
+
+def new_task(pool, obj):
+    global depth
+    mask = obj["mask"]
+    contour = obj["contour"]
+    center = obj["center"]
+    candidates = obj["candidates"]
+    instance_min_depth = depth[mask > 0].min()
+
+    args = [(instance_min_depth, contour, center, candidate) for candidate in candidates]
+    gc_list = pool.starmap(new_sub_task, args)
+    return gc_list
+
+
+with Manager() as manager:
+    with manager.Pool(100) as pool:
+        args = [(pool, obj) for obj in objects]
+        start = time()
+        gc_list_list = pool.starmap(new_task, args)
+        total_spent_time = time() - start
+
+print("total instance:", len(objects))
+print("total time:", total_spent_time)
+print("mean time:", total_spent_time / len(objects))
+
+candidate_img = img.copy()
+for i, gc_list in enumerate(gc_list_list):
+    for j, gc in enumerate(gc_list):
+        if gc.is_valid:
+            coef = (1 - gc.total_score)
+            color = (255, 255 * coef, 255 * coef)
+            gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
+        else:
+            print("---")
+            print(gc.debug_infos)
+            for k, el in enumerate(gc.elements):
+                if len(el.debug_infos):
+                    print(k, el.debug_infos)
+
+        cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
+
+imshow(candidate_img)
 
 # %%
