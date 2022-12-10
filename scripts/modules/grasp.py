@@ -192,7 +192,7 @@ class GraspCandidate:
 
         self.is_framein = self._merge_elements_framein()
         if not self.is_framein:
-            self.debug_infos.append(("framein", self.insertion_score))
+            self.debug_infos.append(("framein", self.is_framein))
             return
         self.elements_is_valid = self._merge_elements_validness()
         if not self.elements_is_valid:
