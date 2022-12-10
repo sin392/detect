@@ -1,5 +1,5 @@
 <launch>
-    <arg name="fps" default="30" />
+    <arg name="fps" default="1" />
     <arg name="device" default="cuda:0" />
     <arg name="use_bag" default="true" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot_20.bag" />
