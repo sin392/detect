@@ -1,7 +1,6 @@
 from typing import List, Tuple
 
 import cv2
-import matplotlib.pyplot as plt
 import numpy as np
 
 from modules.image import extract_depth_between_two_points
