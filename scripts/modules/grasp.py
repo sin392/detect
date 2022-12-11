@@ -177,7 +177,7 @@ class GraspCandidate:
             GraspCandidateElement(
                 hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, depth=depth, contour=contour,
                 center=center, insertion_point=insertion_point,
-                insertion_th=el_insertion_th, contact_th=el_contact_th, bw_depth_th=el_contact_th
+                insertion_th=el_insertion_th, contact_th=el_contact_th, bw_depth_th=el_bw_depth_th
             ) for insertion_point in insertion_points
         ]
 
