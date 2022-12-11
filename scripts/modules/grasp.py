@@ -2,8 +2,9 @@ from typing import List, Tuple
 
 import cv2
 import numpy as np
+
 from modules.image import extract_depth_between_two_points
-from modules.type import Px, Mm, Image, ImagePointUV, ImagePointUVD
+from modules.type import Image, ImagePointUV, ImagePointUVD, Mm, Px
 
 
 class GraspCandidateElement:
@@ -41,13 +42,15 @@ class GraspCandidateElement:
         self.insertion_point_d = depth[insertion_point[1], insertion_point[0]]
         self.is_valid_pre = self.is_framein and self._precheck_validness()
         if not self.is_valid_pre:
-            self.debug_infos.append(("precheck", (self.center_d, self.insertion_point_d)))
+            self.debug_infos.append(
+                ("precheck", (self.center_d, self.insertion_point_d)))
             return
 
         # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
         # 挿入点の評価
         self.intersection_point = self._compute_intersection_point(contour)
-        _, intersection_max_d, intersection_mean_d = compute_depth_profile_in_finger_area(depth, self.intersection_point, finger_radius_px)
+        _, intersection_max_d, intersection_mean_d = compute_depth_profile_in_finger_area(
+            depth, self.intersection_point, finger_radius_px)
         min_d = intersection_mean_d
         max_d = max(intersection_max_d, self.insertion_point_d)
         self.insertion_score = self._compute_point_score(
@@ -203,7 +206,8 @@ class GraspCandidate:
         self.shifted_center = self._compute_contact_points_center()
         self.center_diff_score = self._compute_center_diff_score()
         if self.center_diff_score < center_diff_th:
-            self.debug_infos.append(("center_diff_score", self.center_diff_score))
+            self.debug_infos.append(
+                ("center_diff_score", self.center_diff_score))
             return
         # 各スコアの合算
         self.total_score = self._compute_total_score()

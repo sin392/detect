@@ -24,7 +24,7 @@ from std_msgs.msg import Header
 
 
 class GraspDetectionServer:
-    def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int, 
+    def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int,
                  hand_mount_rotation: int, approach_coef: float,
                  elements_th: float, center_diff_th: float, el_insertion_th: float, el_contact_th: float, el_bw_depth_th: float,
                  info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
@@ -162,7 +162,7 @@ class GraspDetectionServer:
                 bottom_z = max([pt.z for pt in insertion_points_c])
                 top_z = c_3d_c_on_surface.z
                 # length_to_center = bottom_z - top_z
-                length_to_center = (bottom_z - top_z) * self.approach_coef # インスタンス頂点からのアプローチ距離
+                length_to_center = (bottom_z - top_z) * self.approach_coef  # インスタンス頂点からのアプローチ距離
                 c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
                 insertion_points_and_center_w = self.tf_client.transform_points(header, (*insertion_points_c, c_3d_c))
                 insertion_points_w = insertion_points_and_center_w[:-1]
