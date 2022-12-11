@@ -1,6 +1,7 @@
 from typing import List, Tuple
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 
 from modules.image import extract_depth_between_two_points
@@ -32,6 +33,7 @@ class GraspCandidateElement:
         self.debug_infos = []
 
         # 詳細なスコアリングの前に明らかに不正な候補は弾く
+        print("el phase 1")
         h, w = depth.shape[:2]
         # centerがフレームインしているのは明らか
         self.is_framein = self._check_framein(h, w, self.insertion_point)
@@ -39,8 +41,10 @@ class GraspCandidateElement:
             self.debug_infos.append(("framein", self.insertion_point))
             return
 
+        print("el phase 2")
         self.insertion_point_d = depth[insertion_point[1], insertion_point[0]]
         self.is_valid_pre = self.is_framein and self._precheck_validness()
+        print("el phase 3")
         if not self.is_valid_pre:
             self.debug_infos.append(
                 ("precheck", (self.center_d, self.insertion_point_d)))
@@ -49,20 +53,25 @@ class GraspCandidateElement:
         # TODO: ハンドの開き幅調整可能な場合 insertion point = contact pointとなるので、insertionのスコアはいらない
         # 挿入点の評価
         self.intersection_point = self._compute_intersection_point(contour)
+        print("el phase 4")
         _, intersection_max_d, intersection_mean_d = compute_depth_profile_in_finger_area(
             depth, self.intersection_point, finger_radius_px)
+        print("el phase 5")
         min_d = intersection_mean_d
         max_d = max(intersection_max_d, self.insertion_point_d)
         self.insertion_score = self._compute_point_score(
             depth, min_d, max_d, self.insertion_point)
+        print("el phase 6")
         if self.insertion_score < insertion_th:
             self.debug_infos.append(("insertion_score", self.insertion_score))
             return
         # 接触点の計算と評価
         self.contact_point = self._compute_contact_point(
             self.intersection_point)
+        print("el phase 7")
         self.contact_score = self._compute_point_score(
             depth, min_d, max_d, self.contact_point)
+        print("el phase 8")
         if self.contact_score < contact_th:
             self.debug_infos.append(("contact_score", self.contact_score))
             return
@@ -413,6 +422,9 @@ def compute_intersection_between_contour_and_line(img_shape, contour, line_pt1_x
 
     intersections = [(w, h)
                      for h, w in zip(*np.where(bitwise_img > 0))]  # hw to xy
+    if len(intersections) == 0:
+        raise Exception(
+            "No intersection between a contour and a candidate element, 'hand_radius_mm' or 'fp' may be too small")
     mean_intersection = np.int0(np.round(np.mean(intersections, axis=0)))
     return mean_intersection
 
