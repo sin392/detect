@@ -199,7 +199,6 @@ class GraspCandidateElement:
         shifted_contour = contour - upper_left_point
         shifted_center, shifted_edge = [
             tuple(pt - upper_left_point) for pt in (self.center, self.insertion_point)]
-
         shifted_intersection = compute_intersection_between_contour_and_line(
             (h, w), shifted_contour, shifted_center, shifted_edge)
         intersection = tuple(shifted_intersection + upper_left_point)
