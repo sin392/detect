@@ -10,16 +10,20 @@ from modules.const import CONFIGS_PATH, OUTPUTS_PATH, SAMPLES_PATH
 from modules.grasp import GraspDetector
 from modules.image import (compute_optimal_depth_thresh,
                            extract_flont_mask_with_thresh, transform_ddi)
-from utils import imshow
+from utils import RealsenseBagHandler, imshow
 
 # %%
 # depthはuint8の３チャネルになってる
-img_path_list = sorted(glob(f"{SAMPLES_PATH}/real_images/color/*"))
-depth_path_list = sorted(glob(f"{SAMPLES_PATH}/real_images/depth/*"))
+# img_path_list = sorted(glob(f"{SAMPLES_PATH}/real_images/color/*"))
+# depth_path_list = sorted(glob(f"{SAMPLES_PATH}/real_images/depth/*"))
 
-img = cv2.imread(img_path_list[0])
-depth = cv2.cvtColor(cv2.imread(depth_path_list[0]), cv2.COLOR_BGR2GRAY)
+# img = cv2.imread(img_path_list[0])
+# depth = cv2.cvtColor(cv2.imread(depth_path_list[0]), cv2.COLOR_BGR2GRAY)
+path = glob(f"{SAMPLES_PATH}/realsense_viewer_bags/*")[0]
+handler = RealsenseBagHandler(path, 640, 480, 30)
 
+
+img, depth = handler.get_images()
 print(img.dtype, depth.dtype)
 fig, axes = plt.subplots(1, 2)
 axes[0].imshow(img)
@@ -60,12 +64,12 @@ hand_radius_mm = 150
 finger_radius_mm = 1
 unit_angle = 15
 frame_size = img.shape[:2]
-fp = 55  # 適当
+fp = handler.fp
 elements_th = 0
 center_diff_th = 0
-el_insertion_th = 0.1
-el_contact_th = 0.1
-el_bw_depth_th = 0.1
+el_insertion_th = 0
+el_contact_th = 0
+el_bw_depth_th = 0
 detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm,
                          finger_radius_mm=finger_radius_mm,
                          unit_angle=unit_angle, frame_size=frame_size, fp=fp,
@@ -78,7 +82,8 @@ detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm,
 score_th = 0.8
 
 print(res.num_instances)
-cnd_img = flont_img.copy()
+cnd_img_1 = flont_img.copy()
+cnd_img_2 = flont_img.copy()
 for i in range(res.num_instances):
     label = str(res.labels[i])
     score = res.scores[i]
@@ -97,13 +102,19 @@ for i in range(res.num_instances):
         coef = 1 - cnd.total_score
         color = (255, 255 * coef, 255 * coef)
         if cnd.is_framein:
-            cnd.draw(cnd_img, color)
+            cnd.draw(cnd_img_1, color)
+            if cnd.is_valid:
+                cnd.draw(cnd_img_2, color)
     print("success")
-    cv2.circle(cnd_img, center, 3, (255, 0, 0), 1)
-    cv2.drawContours(cnd_img, [contour], -1, 255, 1, lineType=cv2.LINE_AA)
+    cv2.circle(cnd_img_1, center, 3, (0, 0, 255), 1)
+    cv2.drawContours(cnd_img_1, [contour], -1, (0, 100, 255), 1, lineType=cv2.LINE_AA)
+    cv2.circle(cnd_img_2, center, 3, (0, 0, 255), 1)
+    cv2.drawContours(cnd_img_2, [contour], -1, (0, 100, 255), 1, lineType=cv2.LINE_AA)
     # except Exception as e:
     #     print(i, e)
 
-imshow(cnd_img)
+imshow(cnd_img_1)
+imshow(cnd_img_2)
 
-# %%
+:
+:  # %%

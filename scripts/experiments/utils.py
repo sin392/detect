@@ -16,6 +16,7 @@ def load_py2_pickle(path):
 
 
 def imshow(img, show_axis=False, cmap=None):
+    plt.figure()
     plt.imshow(img, cmap=cmap)
     if show_axis is False:
         plt.axis("off")
