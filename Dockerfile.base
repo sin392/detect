@@ -69,6 +69,7 @@ RUN pip3 install tensorboard cmake
 RUN pip3 install torch==1.10 torchvision==0.11.1 -f https://download.pytorch.org/whl/cu111/torch_stable.html
 RUN pip3 install opencv-python
 RUN pip3 install scikit-learn
+RUN pip3 install pyrealsense2
 
 # RUN pip3 install 'git+https://github.com/facebookresearch/fvcore'
 # install detectron2
@@ -82,7 +83,7 @@ RUN pip3 install scikit-learn
 
 # RUN pip3 install -e detectron2_repo
 
-RUN pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.10/index.html
+RUN pip3 install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.10/index.html
 
 
 # Set a fixed model cache directory.
