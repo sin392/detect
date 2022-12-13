@@ -163,7 +163,7 @@ class GraspDetectionServer:
                 top_z = c_3d_c_on_surface.z
                 # length_to_center = bottom_z - top_z
                 length_to_center = (bottom_z - top_z) * self.approach_coef  # インスタンス頂点からのアプローチ距離
-                c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z + length_to_center)
+                c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z)
                 insertion_points_and_center_w = self.tf_client.transform_points(header, (*insertion_points_c, c_3d_c))
                 insertion_points_w = insertion_points_and_center_w[:-1]
                 c_3d_w = insertion_points_and_center_w[-1]
