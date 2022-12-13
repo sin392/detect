@@ -192,7 +192,8 @@ class GraspDetectionServer:
                     angles=angles,
                     short_radius=bbox_short_side_3d / 2,
                     long_radius=bbox_long_side_3d / 2,
-                    length_to_center=length_to_center
+                    length_to_center=length_to_center,
+                    score=best_cand.total_score
                 ))
 
             self.visualize_client.visualize_candidates(vis_base_img_msg, candidates_list)
