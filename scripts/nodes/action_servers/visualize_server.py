@@ -36,15 +36,17 @@ class VisualizeServer:
             # cnds_img = draw_bbox(cnds_img, bbox_handler.tolist())
             # draw candidates
             candidates: List[Candidate] = cnds_msg.candidates
-            center_uv = cnds_msg.center.uv
+            instance_center_uv = cnds_msg.center.uv
             target_index = cnds_msg.target_index
             for i, cnd_msg in enumerate(candidates):
+                candidate_center_uv = cnd_msg.center.uv
                 coef = (1 - cnd_msg.score)
                 color = (255, 255 * coef, 255 * coef)
                 is_target = i == target_index
                 for pt_msg in cnd_msg.insertion_points:
-                    cnds_img = draw_candidate(cnds_img, center_uv, pt_msg.uv, color, is_target=is_target)
-            cv2.circle(cnds_img, center_uv, 3, (0, 255, 0), -1, lineType=cv2.LINE_AA)
+                    cnds_img = draw_candidate(cnds_img, candidate_center_uv, pt_msg.uv, color, is_target=is_target)
+                cv2.circle(cnds_img, candidate_center_uv, 3, (0, 0, 255), -1, lineType=cv2.LINE_AA)
+            cv2.circle(cnds_img, instance_center_uv, 3, (0, 255, 0), -1, lineType=cv2.LINE_AA)
 
         self.publisher.publish(cnds_img, frame_id, stamp)
 

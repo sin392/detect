@@ -27,7 +27,9 @@ class GraspDetectionServer:
     def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int,
                  hand_mount_rotation: int, approach_coef: float,
                  elements_th: float, center_diff_th: float, el_insertion_th: float, el_contact_th: float, el_bw_depth_th: float,
-                 info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, debug: bool):
+                 info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, 
+                 augment_anchors: bool, angle_for_augment: int,
+                 debug: bool):
         rospy.init_node(name, log_level=rospy.INFO)
 
         self.finger_num = finger_num
@@ -43,6 +45,8 @@ class GraspDetectionServer:
         self.el_contact_th = el_contact_th
         self.el_bw_depth_th = el_bw_depth_th
         self.enable_candidate_filter = enable_candidate_filter
+        self.augment_anchors = augment_anchors
+        self.angle_for_augment = angle_for_augment
         self.debug = debug
         cam_info: CameraInfo = rospy.wait_for_message(info_topic, CameraInfo, timeout=None)
         frame_size = (cam_info.height, cam_info.width)
@@ -69,7 +73,9 @@ class GraspDetectionServer:
                                             unit_angle=unit_angle, frame_size=frame_size, fp=fp,
                                             elements_th=elements_th, center_diff_th=center_diff_th,
                                             el_insertion_th=el_insertion_th, el_contact_th=el_contact_th,
-                                            el_bw_depth_th=el_bw_depth_th)
+                                            el_bw_depth_th=el_bw_depth_th,
+                                            augment_anchors=augment_anchors, 
+                                            angle_for_augment=angle_for_augment)
 
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
@@ -116,14 +122,14 @@ class GraspDetectionServer:
                 if instance_min_d > opt_depth_th:
                     continue
 
-                center = np.array(instance_msg.center)
-                center_d_mm = depth[center[1], center[0]]
+                instance_center = np.array(instance_msg.center)
                 bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
                 contour = multiarray2numpy(int, np.int32, instance_msg.contour)
 
-                # bbox_short_side_px, bbox_long_side_px = bbox_handler.get_sides_2d()
                 # detect candidates
-                candidates = self.grasp_detector.detect(center=center, depth=depth, contour=contour)
+                bbox_short_side_px, _ = bbox_handler.get_sides_2d()
+                radius_for_augment = bbox_short_side_px // 2
+                candidates = self.grasp_detector.detect(center=instance_center, depth=depth, contour=contour, radius_for_augment=radius_for_augment)
                 if len(candidates) == 0:
                     continue
                 # select best candidate
@@ -137,6 +143,7 @@ class GraspDetectionServer:
                     Candidates(
                         candidates=[
                             Candidate(
+                                PointTuple2D(cnd.get_center_uv()),
                                 [PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()],
                                 [PointTuple2D(pt) for pt in cnd.get_contact_points_uv()],
                                 cnd.total_score,
@@ -145,7 +152,7 @@ class GraspDetectionServer:
                             for cnd in valid_candidates
                         ],
                         # bbox=bbox_handler.msg,
-                        center=PointTuple2D(center),
+                        center=PointTuple2D(instance_center),
                         target_index=target_index
                     )
                 )
@@ -158,7 +165,7 @@ class GraspDetectionServer:
                 best_cand = valid_candidates[target_index]
                 # 3d projection
                 insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
-                c_3d_c_on_surface = self.projector.screen_to_camera(center, center_d_mm)
+                c_3d_c_on_surface = self.projector.screen_to_camera(*best_cand.get_center_uvd())
                 bottom_z = max([pt.z for pt in insertion_points_c])
                 top_z = c_3d_c_on_surface.z
                 # length_to_center = bottom_z - top_z
@@ -222,6 +229,8 @@ if __name__ == "__main__":
     info_topic = rospy.get_param("image_info_topic")
     enable_depth_filter = rospy.get_param("enable_depth_filter")
     enable_candidate_filter = rospy.get_param("enable_candidate_filter")
+    augment_anchors = rospy.get_param("augment_anchors")
+    angle_for_augment = rospy.get_param("angle_for_augment")
     debug = rospy.get_param("debug")
 
     GraspDetectionServer(
@@ -240,6 +249,8 @@ if __name__ == "__main__":
         info_topic=info_topic,
         enable_depth_filter=enable_depth_filter,
         enable_candidate_filter=enable_candidate_filter,
+        augment_anchors=augment_anchors,
+        angle_for_augment=angle_for_augment,
         debug=debug
     )
     rospy.spin()

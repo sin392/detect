@@ -173,6 +173,7 @@ class GraspCandidate:
         self.finger_radius_px = finger_radius_px
         self.angle = angle
         self.center = center
+        self.center_d = depth[center[1], center[0]]
         self.elements = [
             GraspCandidateElement(
                 hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, depth=depth, contour=contour,
@@ -237,6 +238,9 @@ class GraspCandidate:
     def _compute_total_score(self) -> float:
         return self.elements_score * self.center_diff_score
 
+    def get_center_uv(self) -> ImagePointUV:
+        return self.center
+
     def get_intersection_points_uv(self) -> List[ImagePointUV]:
         return [el.get_intersection_point_uv() for el in self.elements]
 
@@ -245,6 +249,9 @@ class GraspCandidate:
 
     def get_insertion_points_uv(self) -> List[ImagePointUV]:
         return [el.get_insertion_point_uv() for el in self.elements]
+
+    def get_center_uvd(self) -> ImagePointUVD:
+        return (self.center, self.center_d)
 
     def get_contact_points_uvd(self) -> List[ImagePointUVD]:
         return [el.get_contact_point_uvd() for el in self.elements]
@@ -271,8 +278,9 @@ class GraspDetector:
     # TODO: hand_radiusの追加
     def __init__(self, finger_num: int, hand_radius_mm: Mm, finger_radius_mm: Mm, unit_angle: int,
                  frame_size: Tuple[int, int], fp: float,
-                 elements_th=0., center_diff_th=0.,
-                 el_insertion_th=0.5, el_contact_th=0.5, el_bw_depth_th=0.):
+                 elements_th: float = 0., center_diff_th: float = 0.,
+                 el_insertion_th:float = 0.5, el_contact_th: float= 0.5, el_bw_depth_th: float = 0.,
+                 augment_anchors: bool = False, angle_for_augment: int = 15):
         self.finger_num = finger_num
         self.unit_angle = unit_angle  # 生成される把持候補の回転の刻み角
         self.elements_th = elements_th
@@ -280,6 +288,8 @@ class GraspDetector:
         self.el_insertion_th = el_insertion_th
         self.el_contact_th = el_contact_th
         self.el_bw_depth_th = el_bw_depth_th
+        self.augment_anchors = augment_anchors
+        self.angle_for_augment = angle_for_augment
 
         # NOTE: mm, pxの変換は深度、解像度、受光素子のサイズに依存するのでdetect時に変換
         self.hand_radius_mm = hand_radius_mm
@@ -289,54 +299,72 @@ class GraspDetector:
         self.fp = fp
 
         self.base_angle = 360 // self.finger_num  # ハンドの指間の角度 (等間隔前提)
+        self.candidate_element_num = 360 // self.unit_angle
         self.candidate_num = self.base_angle // self.unit_angle
 
-        base_cos, base_sin = np.cos(np.radians(self.base_angle)), np.sin(
-            np.radians(self.base_angle))
-        unit_cos, unit_sin = np.cos(np.radians(self.unit_angle)), np.sin(
-            np.radians(self.unit_angle))
-        self.base_rmat = np.array(
-            [[base_cos, -base_sin], [base_sin, base_cos]])
-        self.unit_rmat = np.array(
-            [[unit_cos, -unit_sin], [unit_sin, unit_cos]])
+        self.base_rmat = self._compute_rmat(self.base_angle)
+        self.unit_rmat = self._compute_rmat(self.unit_angle)
+
+    def _compute_rmat(self, angle):
+        cos_rad, sin_rad = np.cos(np.radians(angle)), np.sin(np.radians(angle))
+        return np.array([[cos_rad, -sin_rad], [sin_rad, cos_rad]])
 
     def _convert_mm_to_px(self, v_mm: Mm, d: Mm) -> Px:
         v_px = (v_mm / d) * self.fp  # (v_mm / 1000) * self.fp / (d / 1000)
         return v_px
 
-    # TODO: hand_radiusはインスタンス変数に
-    def compute_insertion_points(self, center: ImagePointUV, base_finger_v: np.ndarray):
-        finger_v = base_finger_v
-        insertion_points = []
-        for _ in range(self.finger_num):
-            insertion_points.append(
+    def _compute_rotated_points(self, center: ImagePointUV, base_v: np.ndarray, angle: int):
+        # anchorsの計算時は事前にrmatは計算
+        rmat = self._compute_rmat(angle)
+        finger_v = base_v
+        rotated_points = []
+        for _ in range(360 // angle):
+            rotated_points.append(
                 tuple(np.int0(np.round(center + finger_v))))
-            finger_v = np.dot(finger_v, self.base_rmat)
-        return insertion_points
+            finger_v = np.dot(finger_v, rmat)
+        return rotated_points
 
-    def detect(self, center: ImagePointUV, depth: Image, contour: np.ndarray) -> List[GraspCandidate]:
+    def compute_insertion_points(self, center: ImagePointUV, base_finger_v: np.ndarray):
+        return self._compute_rotated_points(center, base_finger_v, self.base_angle)
+
+    def detect(self, center: ImagePointUV, depth: Image, contour: np.ndarray, radius_for_augment: int = 1, anchor_total_score_th: float = 0.5) -> List[GraspCandidate]:
         # 単位変換
         center_d = depth[center[1], center[0]]
         hand_radius_px = self._convert_mm_to_px(self.hand_radius_mm, center_d)
         finger_radius_px = self._convert_mm_to_px(
             self.finger_radius_mm, center_d)
         # ベクトルははじめの角度求めるとかで関数内部で計算してもいいかも
-        base_finger_v = np.array([0, -1]) * hand_radius_px  # 単位ベクトル x ハンド半径
+        unit_vector = np.array([0, -1])
+        base_finger_v = unit_vector * hand_radius_px  # 単位ベクトル x ハンド半径
         candidates = []
+        # TODO: centerの水増し (水増し用の半径も引数で渡す必要)
+        anchors = [center]
+        if self.augment_anchors:
+            tmp_vector = unit_vector * radius_for_augment
+            anchors += self._compute_rotated_points(center, tmp_vector, self.angle_for_augment)
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
-        for i in range(self.candidate_num):
-            finger_v = base_finger_v
-            insertion_points = self.compute_insertion_points(center, finger_v)
-            angle = self.unit_angle * i
-            cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
-                                 depth=depth, contour=contour, center=center, insertion_points=insertion_points,
-                                 elements_th=self.elements_th, center_diff_th=self.center_diff_th,
-                                 el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
-                                 el_bw_depth_th=self.el_bw_depth_th
-                                 )
-            candidates.append(cnd)
+        best_score = 0
+        for anchor in anchors:
+            for i in range(self.candidate_num):
+                finger_v = base_finger_v
+                insertion_points = self.compute_insertion_points(anchor, finger_v)
+                angle = self.unit_angle * i
+                cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
+                                    depth=depth, contour=contour, center=anchor, insertion_points=insertion_points,
+                                    elements_th=self.elements_th, center_diff_th=self.center_diff_th,
+                                    el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
+                                    el_bw_depth_th=self.el_bw_depth_th
+                                    )
+                candidates.append(cnd)
+                if cnd.total_score > best_score:
+                    best_score = cnd.total_score
 
-            base_finger_v = np.dot(base_finger_v, self.unit_rmat)
+                base_finger_v = np.dot(base_finger_v, self.unit_rmat)
+
+            # スコアの良いcandidateがみつかったらanchorの水増しを打ち切り
+            print("best_score :", best_score)
+            if best_score >= anchor_total_score_th:
+                break
 
         return candidates
 
