@@ -174,6 +174,12 @@ class GraspCandidate:
         self.angle = angle
         self.center = center
         self.center_d = depth[center[1], center[0]]
+
+        # centerがマスク内になければinvalid
+        self.is_valid = False
+        if cv2.pointPolygonTest(contour, (int(center[0]), int(center[1])), False) <= 0: # -1: 外側、0: 輪郭上、1: 内側
+            return 
+
         self.elements = [
             GraspCandidateElement(
                 hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, depth=depth, contour=contour,
@@ -186,7 +192,6 @@ class GraspCandidate:
         self.elements_score = 0
         self.center_diff_score = 0
         self.total_score = 0
-        self.is_valid = False
         self.debug_infos = []
 
         self.is_framein = self._merge_elements_framein()
