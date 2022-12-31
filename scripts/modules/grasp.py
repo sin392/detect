@@ -167,11 +167,14 @@ class GraspCandidateElement:
 
 
 class GraspCandidate:
-    def __init__(self, hand_radius_px, finger_radius_px, angle, depth, contour, center, insertion_points,
+    def __init__(self, hand_radius_px, finger_radius_px, angle, depth, contour,
+                  original_center, center, insertion_points,
                  elements_th, center_diff_th, el_insertion_th, el_contact_th, el_bw_depth_th):
         self.hand_radius_px = hand_radius_px
         self.finger_radius_px = finger_radius_px
         self.angle = angle
+        # self.bbox_short_radius = bbox_short_radius
+        self.original_center = original_center
         self.center = center
         self.center_d = depth[center[1], center[0]]
 
@@ -238,10 +241,11 @@ class GraspCandidate:
         return (np.mean(element_scores) - min_score) / (np.max(element_scores) - min_score + 10e-6)
 
     def _compute_center_diff_score(self) -> float:
-        return 1. - (np.linalg.norm(np.array(self.center) - np.array(self.shifted_center), ord=2) / self.hand_radius_px)
+        return (1. - (np.linalg.norm(np.array(self.original_center) - np.array(self.shifted_center), ord=2) / self.hand_radius_px)) ** 2
+        # return 1. - (np.linalg.norm(np.array(self.original_center) - np.array(self.shifted_center), ord=2) / self.bbox_short_radius)
 
     def _compute_total_score(self) -> float:
-        return self.elements_score * self.center_diff_score
+        return self.elements_score * self.center_diff_score * self.center_diff_score
 
     def get_center_uv(self) -> ImagePointUV:
         return self.center
@@ -355,7 +359,7 @@ class GraspDetector:
                 insertion_points = self.compute_insertion_points(anchor, finger_v)
                 angle = self.unit_angle * i
                 cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
-                                    depth=depth, contour=contour, center=anchor, insertion_points=insertion_points,
+                                    depth=depth, contour=contour, original_center=center, center=anchor, insertion_points=insertion_points,
                                     elements_th=self.elements_th, center_diff_th=self.center_diff_th,
                                     el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
                                     el_bw_depth_th=self.el_bw_depth_th
@@ -367,7 +371,6 @@ class GraspDetector:
                 base_finger_v = np.dot(base_finger_v, self.unit_rmat)
 
             # スコアの良いcandidateがみつかったらanchorの水増しを打ち切り
-            print("best_score :", best_score)
             if best_score >= anchor_total_score_th:
                 break
 
