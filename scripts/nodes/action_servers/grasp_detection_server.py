@@ -34,6 +34,22 @@ def process_instance_segmentation_result_routine(depth, instance_msg, detect_fun
 
     return (candidates, instance_center, bbox_handler)
 
+def create_candidates_msg(original_center, valid_candidates, target_index):
+    return Candidates(candidates=[
+            Candidate(
+                        PointTuple2D(cnd.get_center_uv()),
+                        [PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()],
+                        [PointTuple2D(pt) for pt in cnd.get_contact_points_uv()],
+                        cnd.total_score,
+                        cnd.is_valid
+                    )
+                    for cnd in valid_candidates
+                ],
+                # bbox=bbox_handler.msg,
+                center=PointTuple2D(original_center),
+                target_index=target_index
+            )
+
 class GraspDetectionServer:
     def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int,
                  hand_mount_rotation: int, approach_coef: float,
@@ -93,13 +109,71 @@ class GraspDetectionServer:
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
 
+    def depth_filtering(self, img_msg, depth_msg, img, depth, masks, n=5):
+        if self.cdt_client:
+            merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0).astype("uint8")
+            merged_mask_msg = self.bridge.cv2_to_imgmsg(merged_mask)
+            opt_depth_th = self.cdt_client.compute(depth_msg, merged_mask_msg, n=n)
+            flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=n)
+            # flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
+            flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
+            vis_base_img_msg = self.bridge.cv2_to_imgmsg(flont_img)
+
+            rospy.loginfo(opt_depth_th)
+        else:
+            opt_depth_th = UINT16MAX
+            vis_base_img_msg = img_msg
+
+        return opt_depth_th, vis_base_img_msg
+
+
+    def compute_insertion_points_points(self, depth, mask, best_cand, header):
+        # 3d projection
+        insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
+        # length_to_center = bottom_z - top_z
+        insertion_points_w = self.tf_client.transform_points(header, insertion_points_c)
+        return insertion_points_w
+
+    def compute_object_center_pose_stampd(self, depth, mask, c_3d_c_on_surface, header):
+        c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z)
+        c_3d_w = self.tf_client.transform_point(header, c_3d_c)
+        c_orientation = self.pose_estimator.get_orientation(depth, mask)
+
+        return PoseStamped(
+                    Header(frame_id="base_link"),
+                    Pose(
+                        position=c_3d_w.point,
+                        orientation=c_orientation
+                    )
+                )
+
+    def compute_approach_distance(self, c_3d_c_on_surface, insertion_points_c):
+        bottom_z = max([pt.z for pt in insertion_points_c])
+        top_z = c_3d_c_on_surface.z
+        # length_to_center = bottom_z - top_z
+        length_to_center = (bottom_z - top_z) * self.approach_coef  # インスタンス頂点からのアプローチ距離
+        return length_to_center
+
+    def compute_object_3d_radiuses(self, depth, bbox_handler):
+        bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
+        short_raidus = bbox_short_side_3d / 2
+        long_radius = bbox_long_side_3d / 2
+        return (short_raidus, long_radius)
+
+    def augment_angles(self, angle):
+        angles = []
+        for i in range(1, self.finger_num + 1):
+            raw_rotated_angle = angle - (self.base_angle * i)
+            rotated_angle = raw_rotated_angle + 360 if raw_rotated_angle < -360 else raw_rotated_angle
+            reversed_rotated_angle = rotated_angle + 360
+            angles.extend([rotated_angle, reversed_rotated_angle])
+        angles.sort(key=abs)
+        return angles
+
     def callback(self, goal: GraspDetectionGoal):
         print("receive request")
         img_msg = goal.image
         depth_msg = goal.depth
-        # rgbとdepthで軸の向きが違った。想定しているカメラ座標系はrgbの方
-        # frame_id = depth_msg.header.frame_id
-        # stamp = depth_msg.header.stamp
         frame_id = img_msg.header.frame_id
         stamp = img_msg.header.stamp
         header = Header(frame_id=frame_id, stamp=stamp)
@@ -111,22 +185,12 @@ class GraspDetectionServer:
             # TODO: depthしきい値を求めるためにmerged_maskが必要だが非効率なので要改善
             masks = [self.bridge.imgmsg_to_cv2(instance_msg.mask) for instance_msg in instances]
             # TODO: compute n by camera distance
-            if self.cdt_client:
-                merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0).astype("uint8")
-                merged_mask_msg = self.bridge.cv2_to_imgmsg(merged_mask)
-                opt_depth_th = self.cdt_client.compute(depth_msg, merged_mask_msg, n=5)
-                flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=5)
-                # flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
-                flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
-                vis_base_img_msg = self.bridge.cv2_to_imgmsg(flont_img)
+            opt_depth_th, vis_base_img_msg = self.depth_filtering(img_msg, depth_msg, img, depth, masks, n=5)
 
-                rospy.loginfo(opt_depth_th)
-            else:
-                opt_depth_th = UINT16MAX
-                vis_base_img_msg = img_msg
             objects: List[DetectedObject] = []  # 空のものは省く
             candidates_list: List[Candidates] = []  # 空のものも含む
 
+            # 把持候補の生成 (並列処理)
             routine_args = []
             for instance_msg, mask in zip(instances, masks):
                 # ignore other than instances are located on top of stacks
@@ -135,8 +199,9 @@ class GraspDetectionServer:
                 if instance_min_d > opt_depth_th:
                     continue
                 routine_args.append((depth, instance_msg, self.grasp_detector.detect))
-            # 並列処理
             results = self.pool.starmap(process_instance_segmentation_result_routine, routine_args)
+
+            # TODO: 座標変換も並列処理化したい
             for candidates, instance_center, bbox_handler in results:
                 if len(candidates) == 0:
                     continue
@@ -146,23 +211,8 @@ class GraspDetectionServer:
                 valid_scores = [cnd.total_score for cnd in valid_candidates]
                 target_index = np.argmax(valid_scores) if is_valid else 0
 
-                # candidates_list は空のものも含む
-                candidates_list.append(Candidates(
-                        candidates=[
-                            Candidate(
-                                PointTuple2D(cnd.get_center_uv()),
-                                [PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()],
-                                [PointTuple2D(pt) for pt in cnd.get_contact_points_uv()],
-                                cnd.total_score,
-                                cnd.is_valid
-                            )
-                            for cnd in valid_candidates
-                        ],
-                        # bbox=bbox_handler.msg,
-                        center=PointTuple2D(instance_center),
-                        target_index=target_index
-                    )
-                )
+                # candidates_list は可視化用に空のものも含む
+                candidates_list.append(create_candidates_msg(instance_center, valid_candidates, target_index))
 
                 # TODO: is_frameinの判定冗長なので要整理
                 include_any_frameout = not np.any([cnd.is_framein for cnd in valid_candidates])
@@ -173,39 +223,24 @@ class GraspDetectionServer:
                 # 3d projection
                 insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(*best_cand.get_center_uvd())
-                bottom_z = max([pt.z for pt in insertion_points_c])
-                top_z = c_3d_c_on_surface.z
-                # length_to_center = bottom_z - top_z
-                length_to_center = (bottom_z - top_z) * self.approach_coef  # インスタンス頂点からのアプローチ距離
-                c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z)
-                insertion_points_and_center_w = self.tf_client.transform_points(header, (*insertion_points_c, c_3d_c))
-                insertion_points_w = insertion_points_and_center_w[:-1]
-                c_3d_w = insertion_points_and_center_w[-1]
-                c_orientation = self.pose_estimator.get_orientation(depth, mask)
-                bbox_short_side_3d, bbox_long_side_3d = bbox_handler.get_sides_3d(self.projector, depth)
-
+                # compute approach distance
+                length_to_center = self.compute_approach_distance(c_3d_c_on_surface, insertion_points_c)
+                # compute center pose stamped (world coords)
+                insertion_points_msg = [pt.point for pt in self.tf_client.transform_points(header, insertion_points_c)]
+                center_pose_stamped_msg = self.compute_object_center_pose_stampd(depth, mask, c_3d_c_on_surface, header)
+                # compute 3d radiuses
+                short_radius_3d, long_radius_3d = self.compute_object_3d_radiuses(depth, bbox_handler)
+                # angleの変換と水増し
                 # NOTE: unclockwise seen from image plane is positive in cnd.angle, so convert as rotate on z-axis
                 # NOTE: 指位置が同じになる角度は複数存在するので候補に追加している
                 angle = -best_cand.angle + self.hand_mount_rotation
-                angles = []
-                for i in range(1, self.finger_num + 1):
-                    raw_rotated_angle = angle - (self.base_angle * i)
-                    rotated_angle = raw_rotated_angle + 360 if raw_rotated_angle < -360 else raw_rotated_angle
-                    reversed_rotated_angle = rotated_angle + 360
-                    angles.extend([rotated_angle, reversed_rotated_angle])
-                angles.sort(key=abs)
+                angles = self.augment_angles(angle)
                 objects.append(DetectedObject(
-                    points=[pt.point for pt in insertion_points_w],
-                    center_pose=PoseStamped(
-                        Header(frame_id="base_link"),
-                        Pose(
-                            position=c_3d_w.point,
-                            orientation=c_orientation
-                        )
-                    ),
+                    points=insertion_points_msg,
+                    center_pose=center_pose_stamped_msg,
                     angles=angles,
-                    short_radius=bbox_short_side_3d / 2,
-                    long_radius=bbox_long_side_3d / 2,
+                    short_radius=short_radius_3d,
+                    long_radius=long_radius_3d,
                     length_to_center=length_to_center,
                     score=best_cand.total_score
                     )
