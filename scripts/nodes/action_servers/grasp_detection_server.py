@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from time import time
 from typing import List
+from multiprocessing import Pool
 
 import cv2
 import numpy as np
@@ -22,6 +23,16 @@ from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
 from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Header
 
+def process_instance_segmentation_result_routine(depth, instance_msg, detect_func):
+    instance_center = np.array(instance_msg.center)
+    bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
+    contour = multiarray2numpy(int, np.int32, instance_msg.contour)
+    # detect candidates
+    bbox_short_side_px, _ = bbox_handler.get_sides_2d()
+    radius_for_augment = bbox_short_side_px // 2
+    candidates = detect_func(center=instance_center, depth=depth, contour=contour, radius_for_augment=radius_for_augment)
+
+    return (candidates, instance_center, bbox_handler)
 
 class GraspDetectionServer:
     def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int,
@@ -77,6 +88,8 @@ class GraspDetectionServer:
                                             augment_anchors=augment_anchors, 
                                             angle_for_augment=angle_for_augment)
 
+        self.pool = Pool(100)
+
         self.server = SimpleActionServer(name, GraspDetectionAction, self.callback, False)
         self.server.start()
 
@@ -113,34 +126,28 @@ class GraspDetectionServer:
                 vis_base_img_msg = img_msg
             objects: List[DetectedObject] = []  # 空のものは省く
             candidates_list: List[Candidates] = []  # 空のものも含む
+
+            routine_args = []
             for instance_msg, mask in zip(instances, masks):
-                # mask = self.bridge.imgmsg_to_cv2(instance_msg.mask)  # binary mask
                 # ignore other than instances are located on top of stacks
                 # TODO: しきい値で切り出したマスク内に含まれないインスタンスはスキップ
-                # TODO: スキップされてもcenterは描画したい
                 instance_min_d = depth[mask > 0].min()
                 if instance_min_d > opt_depth_th:
                     continue
-
-                instance_center = np.array(instance_msg.center)
-                bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
-                contour = multiarray2numpy(int, np.int32, instance_msg.contour)
-
-                # detect candidates
-                bbox_short_side_px, _ = bbox_handler.get_sides_2d()
-                radius_for_augment = bbox_short_side_px // 2
-                candidates = self.grasp_detector.detect(center=instance_center, depth=depth, contour=contour, radius_for_augment=radius_for_augment)
+                routine_args.append((depth, instance_msg, self.grasp_detector.detect))
+            # 並列処理
+            results = self.pool.starmap(process_instance_segmentation_result_routine, routine_args)
+            for candidates, instance_center, bbox_handler in results:
                 if len(candidates) == 0:
                     continue
                 # select best candidate
-                valid_candidates = [cnd for cnd in candidates if cnd.is_valid] if self.enable_candidate_filter else candidates
+                valid_candidates = [cnd for cnd in candidates if cnd.is_valid] if enable_candidate_filter else candidates
                 is_valid = len(valid_candidates) > 0
                 valid_scores = [cnd.total_score for cnd in valid_candidates]
                 target_index = np.argmax(valid_scores) if is_valid else 0
 
                 # candidates_list は空のものも含む
-                candidates_list.append(
-                    Candidates(
+                candidates_list.append(Candidates(
                         candidates=[
                             Candidate(
                                 PointTuple2D(cnd.get_center_uv()),
@@ -201,8 +208,9 @@ class GraspDetectionServer:
                     long_radius=bbox_long_side_3d / 2,
                     length_to_center=length_to_center,
                     score=best_cand.total_score
-                ))
-
+                    )
+                )
+           
             self.visualize_client.visualize_candidates(vis_base_img_msg, candidates_list)
             if self.dbg_info_publisher:
                 self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))
