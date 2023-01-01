@@ -349,8 +349,8 @@ class GraspDetector:
         # TODO: centerの水増し (水増し用の半径も引数で渡す必要)
         anchors = [center]
         if self.augment_anchors:
-            tmp_vector = unit_vector * radius_for_augment
-            anchors += self._compute_rotated_points(center, tmp_vector, self.angle_for_augment)
+            vector_for_augment = unit_vector * radius_for_augment
+            anchors += self._compute_rotated_points(center, vector_for_augment, self.angle_for_augment)
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
         best_score = 0
         for anchor in anchors:
