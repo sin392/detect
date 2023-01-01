@@ -39,8 +39,8 @@ class VisualizeClient(SimpleActionClient):
         self.stack = []
         self.wait_for_server()
 
-    def visualize_candidates(self, base_image: Image, candidates_list: List[Candidates]):
-        self.send_goal(VisualizeCandidatesGoal(base_image, candidates_list))
+    def visualize_candidates(self, base_image: Image, candidates_list: List[Candidates], target_index: int):
+        self.send_goal(VisualizeCandidatesGoal(base_image, candidates_list, target_index))
 
     def push_item(self, candidates: Candidates):
         self.stack.append(candidates)

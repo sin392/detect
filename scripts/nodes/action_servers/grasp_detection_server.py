@@ -202,7 +202,8 @@ class GraspDetectionServer:
             results = self.pool.starmap(process_instance_segmentation_result_routine, routine_args)
 
             # TODO: 座標変換も並列処理化したい
-            for candidates, instance_center, bbox_handler in results:
+            max_score_object_index = 0
+            for obj_index, (candidates, instance_center, bbox_handler) in enumerate(results):
                 if len(candidates) == 0:
                     continue
                 # select best candidate
@@ -220,6 +221,8 @@ class GraspDetectionServer:
                     continue
 
                 best_cand = valid_candidates[target_index]
+                if best_cand.total_score > max_score_object_index:
+                    max_score_object_index = obj_index
                 # 3d projection
                 insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
                 c_3d_c_on_surface = self.projector.screen_to_camera(*best_cand.get_center_uvd())
@@ -246,7 +249,7 @@ class GraspDetectionServer:
                     )
                 )
            
-            self.visualize_client.visualize_candidates(vis_base_img_msg, candidates_list)
+            self.visualize_client.visualize_candidates(vis_base_img_msg, candidates_list, max_score_object_index)
             if self.dbg_info_publisher:
                 self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))
             spent = time() - start_time
