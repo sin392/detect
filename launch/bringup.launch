@@ -2,7 +2,7 @@
     <arg name="fps" default="1" />
     <arg name="device" default="cuda:0" />
     <arg name="show_view" default="true" />
-    <arg name="use_bag" default="true" />
+    <arg name="use_bag" default="false" />
     <arg name="bag" default="$(find detect)/outputs/bags/robot_20.bag" />
     <arg name="enable_depth_filter" default="true" />
     <arg name="enable_candidate_filter" default="true" />
@@ -24,7 +24,7 @@
     <arg name="robot_name" default="myrobot" />
     <arg name="debug" default="false" />
 
-    <arg name="used_camera" default="body_camera" />
+    <arg name="used_camera" default="left_camera" />
     <arg name="image_topic" default="/$(arg robot_name)/$(arg used_camera)/color/image_raw" />
     <arg name="depth_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/image_raw" />
     <arg name="image_info_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/camera_info" />
@@ -71,7 +71,7 @@
 
     <!-- <node name="raw_view" pkg="rqt_image_view" type="rqt_image_view" args="/body_camera/color/image_raw" /> -->
     <group if="$(arg show_view)">
-        <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg depth_topic)" />
+        <!-- <node name="depth_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg depth_topic)" /> -->
         <node name="seg_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg seg_topic)" />
         <node name="cnds_view" pkg="rqt_image_view" type="rqt_image_view" args="$(arg candidates_img_topic)" />
     </group>
