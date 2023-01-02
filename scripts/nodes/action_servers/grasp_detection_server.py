@@ -126,14 +126,6 @@ class GraspDetectionServer:
 
         return opt_depth_th, vis_base_img_msg
 
-
-    def compute_insertion_points_points(self, depth, mask, best_cand, header):
-        # 3d projection
-        insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
-        # length_to_center = bottom_z - top_z
-        insertion_points_w = self.tf_client.transform_points(header, insertion_points_c)
-        return insertion_points_w
-
     def compute_object_center_pose_stampd(self, depth, mask, c_3d_c_on_surface, header):
         c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z)
         c_3d_w = self.tf_client.transform_point(header, c_3d_c)
