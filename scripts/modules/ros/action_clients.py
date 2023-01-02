@@ -7,7 +7,8 @@ from detect.msg import (Candidates, ComputeDepthThresholdAction,
                         GraspDetectionAction, GraspDetectionGoal, Instance,
                         InstanceSegmentationAction, InstanceSegmentationGoal,
                         TransformPointAction, TransformPointGoal,
-                        VisualizeCandidatesAction, VisualizeCandidatesGoal)
+                        VisualizeCandidatesAction, VisualizeCandidatesGoal,
+                        VisualizeTargetAction, VisualizeTargetGoal)
 from geometry_msgs.msg import Point, PointStamped
 from sensor_msgs.msg import Image
 from std_msgs.msg import Header
@@ -33,24 +34,20 @@ class TFClient(SimpleActionClient):
         return result
 
 
-class VisualizeClient(SimpleActionClient):
-    def __init__(self, ns="visualize_server", ActionSpec=VisualizeCandidatesAction):
-        super().__init__(ns, ActionSpec)
-        self.stack = []
-        self.wait_for_server()
+class VisualizeClient:
+    def __init__(self):
+        self.actions = []
+        self.draw_candidates_action = SimpleActionClient("visualize_server_draw_candidates", VisualizeCandidatesAction)
+        self.draw_target_action = SimpleActionClient("visualize_server_draw_target", VisualizeTargetAction)
 
-    def visualize_candidates(self, base_image: Image, candidates_list: List[Candidates], target_index: int):
-        self.send_goal(VisualizeCandidatesGoal(base_image, candidates_list, target_index))
+        for action in self.actions:
+            action.wait_for_server()
 
-    def push_item(self, candidates: Candidates):
-        self.stack.append(candidates)
+    def visualize_candidates(self, base_image: Image, candidates_list: List[Candidates]):
+        self.draw_candidates_action.send_goal(VisualizeCandidatesGoal(base_image, candidates_list))
 
-    def visualize_stacked_candidates(self, base_image: Image):
-        self.send_goal(VisualizeCandidatesGoal(base_image, self.stack))
-        self.clear_stack()
-
-    def clear_stack(self):
-        self.stack = []
+    def visualize_target(self, target_index: int):
+        self.draw_target_action.send_goal(VisualizeTargetGoal(target_index))
 
 
 class InstanceSegmentationClient(SimpleActionClient):

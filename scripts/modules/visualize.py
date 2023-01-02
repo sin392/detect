@@ -7,8 +7,8 @@ def draw_bbox(img, box, color=(0, 255, 0), **kwargs):
     return img
 
 
-def draw_candidate(img, p1, p2, color=(0, 0, 255), is_target=False, **kwargs):
-    thickness = 2 if is_target else 1
+def draw_candidate(img, p1, p2, color=(0, 0, 255), is_target=False, target_thickness=2, **kwargs):
+    thickness = target_thickness if is_target else 1
     img = cv2.line(img, p1, p2, color, thickness, cv2.LINE_AA, **kwargs)
     return img
 

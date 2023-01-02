@@ -78,6 +78,7 @@ add_action_files(
   FILES
   TransformPoint.action
   VisualizeCandidates.action
+  VisualizeTarget.action
   InstanceSegmentation.action
   GraspDetection.action
   ComputeDepthThreshold.action

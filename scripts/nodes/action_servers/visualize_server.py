@@ -6,7 +6,7 @@ import rospy
 from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, VisualizeCandidatesAction,
-                        VisualizeCandidatesGoal)
+                        VisualizeCandidatesGoal, VisualizeTargetAction, VisualizeTargetGoal)
 # from modules.ros.msg_handlers import RotatedBoundingBoxHandler
 from modules.ros.publishers import ImageMatPublisher
 from modules.visualize import convert_rgb_to_3dgray  # , draw_bbox
@@ -19,44 +19,75 @@ class VisualizeServer:
 
         self.bridge = CvBridge()
         self.publisher = ImageMatPublisher(pub_topic, queue_size=10)
-        self.server = SimpleActionServer(name, VisualizeCandidatesAction, self.callback, False)
-        self.server.start()
 
-    def callback(self, goal: VisualizeCandidatesGoal):
+        self.last_image = None
+        self.last_candidates_list = []
+        self.last_frame_id = None
+        self.last_stamp = None
+
+        self.servers = []
+        self.servers.append(SimpleActionServer(f"{name}_draw_candidates", VisualizeCandidatesAction, self.draw_candidates, False))
+        self.servers.append(SimpleActionServer(f"{name}_draw_target", VisualizeTargetAction, self.draw_target, False))
+
+        for server in self.servers:
+            server.start()
+
+    def get_color(self, score):
+        coef = (1 - score)
+        color = (255, 255 * coef, 255 * coef)
+        return color
+
+    def draw_candidates(self, goal: VisualizeCandidatesGoal):
         img_msg = goal.base_image
         img = self.bridge.imgmsg_to_cv2(img_msg)
         candidates_list: List[Candidates] = goal.candidates_list
-        obj_target_index: int = goal.target_index
         frame_id = img_msg.header.frame_id
         stamp = img_msg.header.stamp
 
-        cnds_img = convert_rgb_to_3dgray(img)
-        for obj_index, cnds_msg in enumerate(candidates_list):
-            # draw bbox
-            # bbox_handler = RotatedBoundingBoxHandler(cnds_msg.bbox)
-            # cnds_img = draw_bbox(cnds_img, bbox_handler.tolist())
-            # draw candidates
+        res_img = convert_rgb_to_3dgray(img)
+        for cnds_msg in candidates_list:
             candidates: List[Candidate] = cnds_msg.candidates
             obj_center_uv = cnds_msg.center.uv
             cnd_target_index = cnds_msg.target_index
             for cnd_index, cnd_msg in enumerate(candidates):
                 cnd_center_uv = cnd_msg.center.uv
-                coef = (1 - cnd_msg.score)
-                color = (255, 255 * coef, 255 * coef)
+                color = self.get_color(cnd_msg.score)
                 is_target = cnd_index == cnd_target_index
                 for pt_msg in cnd_msg.insertion_points:
-                    cnds_img = draw_candidate(cnds_img, cnd_center_uv, pt_msg.uv, color, is_target=is_target)
-                cv2.circle(cnds_img, cnd_center_uv, 3, (0, 0, 255), -1, lineType=cv2.LINE_AA)
+                    res_img = draw_candidate(res_img, cnd_center_uv, pt_msg.uv, color, is_target=is_target)
+                cv2.circle(res_img, cnd_center_uv, 3, (0, 0, 255), -1, lineType=cv2.LINE_AA)
 
-            if obj_index == obj_target_index:
-                best_score = candidates[cnd_target_index].score
-                cv2.circle(cnds_img, cnd_center_uv, 6, (0, 255, 0), 1, lineType=cv2.LINE_AA)
-                cv2.putText(cnds_img, f"{best_score:.2f}", (obj_center_uv[0] + 10, obj_center_uv[1] + 5), 
+            cv2.circle(res_img, obj_center_uv, 3, (0, 255, 0), -1, lineType=cv2.LINE_AA)
+
+        self.last_image = res_img
+        self.last_candidates_list = candidates_list
+        self.last_frame_id = frame_id
+        self.last_stamp = stamp
+        self.publisher.publish(res_img, frame_id, stamp)
+
+    def draw_target(self, goal: VisualizeTargetGoal):
+        """ 一度candidatesを描画した後に使用すること """
+        if type(self.last_image) != None:
+            target_obj_index = goal.target_index
+            cnds_msg = self.last_candidates_list[target_obj_index]
+            target_cnd_index = cnds_msg.target_index
+            res_img = self.last_image.copy()
+            obj_center_uv = cnds_msg.center.uv
+            cnd_msg = cnds_msg.candidates[target_cnd_index]
+            cnd_center_uv = cnd_msg.center.uv
+            score = cnd_msg.score
+
+            outer_color = (0, 255, 0)
+            inner_color = self.get_color(score)
+            for color, thickness in ((outer_color, 4), (inner_color, 2)):
+                for pt_msg in cnd_msg.insertion_points:
+                    res_img = draw_candidate(res_img, cnd_center_uv, pt_msg.uv, color, is_target=True, target_thickness=thickness)
+            
+            # cv2.circle(res_img, obj_center_uv, 6, (0, 255, 0), 1, lineType=cv2.LINE_AA)
+            cv2.putText(res_img, f"{score:.2f}", (obj_center_uv[0] + 10, obj_center_uv[1] + 5), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
-            cv2.circle(cnds_img, obj_center_uv, 3, (0, 255, 0), -1, lineType=cv2.LINE_AA)
 
-        self.publisher.publish(cnds_img, frame_id, stamp)
-
+        self.publisher.publish(res_img, self.last_frame_id, self.last_stamp)
 
 if __name__ == "__main__":
     pub_topic = rospy.get_param("candidates_img_topic")
