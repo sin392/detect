@@ -1,13 +1,26 @@
+import struct
 from typing import Tuple
 
 import numpy as np
 from geometry_msgs.msg import Point, Quaternion
+from sensor_msgs.msg import PointCloud2
 from image_geometry import PinholeCameraModel
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from std_msgs.msg import MultiArrayDimension
 from tf.transformations import quaternion_from_matrix
 
+def get_xyz_from_pc2(msg: PointCloud2, uv: Tuple[int, int]) -> Tuple[float, float, float]:
+    fields = msg.fields
+    point_step = msg.point_step
+    row_step = msg.row_step
+    data = msg.data
+
+    offset = (uv[1] * row_step) + (uv[0] * point_step)
+    target_data = data[offset:offset+point_step]
+    xyz = tuple([struct.unpack("<f", target_data[fields[i].offset:fields[i].offset+4])[0] for i in range(3)])
+
+    return xyz
 
 class PointProjector:
     def __init__(self, cam_info):
@@ -15,10 +28,22 @@ class PointProjector:
         self.cam_model.fromCameraInfo(cam_info)
         self.cu = cam_info.P[2]
         self.cv = cam_info.P[6]
+    
+    def screen_to_camera_2(msg: PointCloud2, uv: Tuple[int, int]) -> Point:
+        """
+        スクリーン座標系上のピクセル(と対応したdepth)をカメラ座標系へ３次元投影
+        ---
+        uv: ピクセル位置 (スクリーン座標系)
+        d: u,vにおける深度 (この値自体は元々カメラ座標系)
+        """
+        xyz = get_xyz_from_pc2(msg, uv)
+        object_point = Point(*xyz)
+
+        return object_point
 
     def screen_to_camera(self, uv, d) -> Point:
         """
-        スクリーン座標系上のピクセル(と対応したdepth)をカメラ座標系へ３次元投影
+        Deprecated: スクリーン座標系上のピクセル(と対応したdepth)をカメラ座標系へ３次元投影
         ---
         uv: ピクセル位置 (スクリーン座標系)
         d: u,vにおける深度 (この値自体は元々カメラ座標系)
