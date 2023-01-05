@@ -29,6 +29,7 @@
     <arg name="depth_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/image_raw" />
     <arg name="image_info_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/camera_info" />
     <arg name="depth_info_topic" default="/$(arg robot_name)/$(arg used_camera)/aligned_depth_to_color/camera_info" />
+    <arg name="points_topic" default="/$(arg robot_name)/$(arg used_camera)/depth/color/points" />
     <arg name="seg_topic" default="/$(arg robot_name)/$(arg used_camera)/color/image_raw/segmented_img" />
     <arg name="candidates_img_topic" default="/$(arg robot_name)/$(arg used_camera)/color/image_raw/candidates_img" />
 
@@ -66,6 +67,7 @@
     <param name="depth_topic" value="$(arg depth_topic)" />
     <param name="image_info_topic" value="$(arg image_info_topic)" />
     <param name="depth_info_topic" value="$(arg depth_info_topic)" />
+    <param name="points_topic" value="$(arg points_topic)" />
     <param name="seg_topic" value="$(arg seg_topic)" />
     <param name="candidates_img_topic" value="$(arg candidates_img_topic)" />
 

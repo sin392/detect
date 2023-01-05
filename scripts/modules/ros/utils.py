@@ -37,6 +37,7 @@ class PointProjector:
         d: u,vにおける深度 (この値自体は元々カメラ座標系)
         """
         xyz = get_xyz_from_pc2(msg, uv)
+        print(xyz)
         object_point = Point(*xyz)
 
         return object_point
