@@ -15,7 +15,6 @@ class TFTransformServer:
 
         self.buffer = Buffer()
         self.lisner = TransformListener(self.buffer)
-        self.cached_trans = {}
         self.server = actionlib.SimpleActionServer(name, TransformPointAction, self.callback, False)
         self.server.start()
 
@@ -28,12 +27,7 @@ class TFTransformServer:
         self.server.set_succeeded(result)
 
     def get_trans(self, target_frame: str, frame_id: str, stamp: rospy.Time):
-        trans_key = f"{target_frame}:{frame_id}"
-        if trans_key in self.cached_trans:
-            trans = self.cached_trans[trans_key]
-        else:
-            trans = self.buffer.lookup_transform(target_frame, frame_id, stamp)
-            self.cached_trans[trans_key] = trans
+        trans = self.buffer.lookup_transform(target_frame, frame_id, stamp)
 
         return trans
 
