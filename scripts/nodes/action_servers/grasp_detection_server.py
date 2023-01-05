@@ -166,6 +166,7 @@ class GraspDetectionServer:
         print("receive request")
         img_msg = goal.image
         depth_msg = goal.depth
+        points_msg = goal.points
         frame_id = img_msg.header.frame_id
         stamp = img_msg.header.stamp
         header = Header(frame_id=frame_id, stamp=stamp)
@@ -213,8 +214,10 @@ class GraspDetectionServer:
 
                 best_cand = valid_candidates[target_index]
                 # 3d projection
-                insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
-                c_3d_c_on_surface = self.projector.screen_to_camera(*best_cand.get_center_uvd())
+                insertion_points_c = [self.projector.screen_to_camera_2(points_msg, uv) for uv in best_cand.get_insertion_points_uv()]
+                c_3d_c_on_surface = self.projector.screen_to_camera_2(points_msg, best_cand.get_center_uv())
+                # insertion_points_c = [self.projector.screen_to_camera(uv, d_mm) for uv, d_mm in best_cand.get_insertion_points_uvd()]
+                # c_3d_c_on_surface = self.projector.screen_to_camera(*best_cand.get_center_uvd())
                 # compute approach distance
                 length_to_center = self.compute_approach_distance(c_3d_c_on_surface, insertion_points_c)
                 # compute center pose stamped (world coords)
@@ -227,6 +230,7 @@ class GraspDetectionServer:
                 # NOTE: 指位置が同じになる角度は複数存在するので候補に追加している
                 angle = -best_cand.angle + self.hand_mount_rotation
                 angles = self.augment_angles(angle)
+                angles = [angle]
                 objects.append(DetectedObject(
                     points=insertion_points_msg,
                     center_pose=center_pose_stamped_msg,
