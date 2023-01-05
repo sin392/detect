@@ -29,7 +29,7 @@ class PointProjector:
         self.cu = cam_info.P[2]
         self.cv = cam_info.P[6]
     
-    def screen_to_camera_2(msg: PointCloud2, uv: Tuple[int, int]) -> Point:
+    def screen_to_camera_2(self, msg: PointCloud2, uv: Tuple[int, int]) -> Point:
         """
         スクリーン座標系上のピクセル(と対応したdepth)をカメラ座標系へ３次元投影
         ---
