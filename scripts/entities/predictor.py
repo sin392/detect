@@ -1,4 +1,4 @@
-from typing import Any, Tuple, TypedDict
+from typing import Any, Tuple, TypedDict, Union
 
 import cv2
 import numpy as np
@@ -60,7 +60,7 @@ class PredictResult:
             self.bboxes.append(each_mask.get_rotated_bbox())
             self.areas.append(each_mask.get_area())
 
-    def draw_instances(self, img, metadata={}, scale=0.5, instance_mode=ColorMode.IMAGE_BW):
+    def draw_instances(self, img, metadata={}, scale=0.5, instance_mode=ColorMode.IMAGE_BW, targets: Union[list, np.ndarray, None] = None):
         v = Visualizer(
             img,
             metadata=metadata,
@@ -69,7 +69,8 @@ class PredictResult:
             # This option is only available for segmentation models
             instance_mode=instance_mode
         )
-        return v.draw_instance_predictions(self._instances).get_image()[:, :, ::-1]
+        instances = self._instances if targets is None else self._instances[targets]
+        return v.draw_instance_predictions(instances).get_image()[:, :, ::-1]
 
 
 # これは別の場所に置くべきでは

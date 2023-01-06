@@ -11,7 +11,7 @@ from modules.grasp import GraspDetector
 from modules.image import (compute_optimal_depth_thresh,
                            extract_flont_mask_with_thresh, get_3c_gray,
                            refine_flont_mask, transform_ddi)
-from utils import RealsenseBagHandler, imshow
+from utils import RealsenseBagHandler, imshow, smirnov_grubbs
 
 # %%
 # depthはuint8の３チャネルになってる
@@ -44,12 +44,21 @@ cfg.MODEL.WEIGHTS = weight_path
 cfg.MODEL.DEVICE = device
 
 predictor = Predictor(cfg)
-
 # %%
 res = predictor.predict(img)
+areas = [res.areas[i] for i in range(res.num_instances)]
+plt.figure()
+plt.plot(areas)
 seg = res.draw_instances(img[:, :, ::-1])
 imshow(seg)
 
+# %% 複数のインスタンスを包含するようなものはNMSでうまく除去できないので、面積を使ってフィルタリング
+outlier_indexes = smirnov_grubbs(areas, 0.05)
+print(outlier_indexes)
+target_indexes = [i for i in range(res.num_instances) if i not in outlier_indexes]
+
+seg2 = res.draw_instances(img[:, :, ::-1], targets=target_indexes)
+imshow(seg2)
 # %%
 merged_mask = np.where(np.sum(res.masks, axis=0) > 0, 255, 0).astype("uint8")
 # depthの欠損箇所があれば全体マスクから除外
@@ -134,3 +143,5 @@ for i in range(res.num_instances):
 
 imshow(cnd_img_1)
 imshow(cnd_img_2)
+
+# %%
