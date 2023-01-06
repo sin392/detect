@@ -9,8 +9,8 @@ from entities.predictor import Predictor
 from modules.const import CONFIGS_PATH, OUTPUTS_PATH, SAMPLES_PATH
 from modules.grasp import GraspDetector
 from modules.image import (compute_optimal_depth_thresh,
-                           extract_flont_mask_with_thresh, refine_flont_mask,
-                           transform_ddi)
+                           extract_flont_mask_with_thresh, get_3c_gray,
+                           refine_flont_mask, transform_ddi)
 from utils import RealsenseBagHandler, imshow
 
 # %%
@@ -92,14 +92,17 @@ detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm,
                          elements_th=elements_th, center_diff_th=center_diff_th,
                          el_insertion_th=el_insertion_th, el_contact_th=el_contact_th,
                          el_bw_depth_th=el_bw_depth_th)
-
-
 # %%
 score_th = 0.8
 
+gray_3c = get_3c_gray(img)
+reversed_flont_mask = cv2.bitwise_not(flont_mask)
+base_img = cv2.bitwise_and(img, img, mask=flont_mask) + \
+    cv2.bitwise_and(gray_3c, gray_3c, mask=reversed_flont_mask)
+
 print(res.num_instances)
-cnd_img_1 = flont_img.copy()
-cnd_img_2 = flont_img.copy()
+cnd_img_1 = base_img.copy()
+cnd_img_2 = base_img.copy()
 for i in range(res.num_instances):
     label = str(res.labels[i])
     score = res.scores[i]
@@ -131,5 +134,3 @@ for i in range(res.num_instances):
 
 imshow(cnd_img_1)
 imshow(cnd_img_2)
-
-# %%
