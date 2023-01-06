@@ -229,8 +229,8 @@ class GraspDetectionServer:
                 # NOTE: unclockwise seen from image plane is positive in cnd.angle, so convert as rotate on z-axis
                 # NOTE: 指位置が同じになる角度は複数存在するので候補に追加している
                 angle = -best_cand.angle + self.hand_mount_rotation
+                # 先頭要素(最小絶対値の角度)のみでいいかもしれない
                 angles = self.augment_angles(angle)
-                angles = [angle]
                 objects.append(DetectedObject(
                     points=insertion_points_msg,
                     center_pose=center_pose_stamped_msg,
