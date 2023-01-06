@@ -96,11 +96,22 @@ detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm,
                          el_bw_depth_th=el_bw_depth_th,
                          augment_anchors=True)
 # %%
+
+
+def get_radius_for_augment(bbox):
+    side_h = np.linalg.norm((bbox[0] - bbox[1])) / 2
+    side_v = np.linalg.norm((bbox[0] - bbox[2])) / 2
+    short_side = min(side_h, side_v)
+
+    return int(short_side // 2)
+
+
 gray_3c = convert_rgb_to_3dgray(img)
 reversed_flont_mask = cv2.bitwise_not(flont_mask)
 base_img = cv2.bitwise_and(img, img, mask=flont_mask) + \
     cv2.bitwise_and(gray_3c, gray_3c, mask=reversed_flont_mask)
 
+top_cnd_num = 1
 cnd_img_1 = base_img.copy()
 cnd_img_2 = base_img.copy()
 for i in valid_indexes:
@@ -109,17 +120,25 @@ for i in valid_indexes:
     center = res.centers[i]
     mask = res.masks[i]
     contour = res.contours[i]
+    bbox = res.bboxes[i]
 
     is_flont = flont_mask[center[1], center[0]] > 0
 
     if is_flont:
-        candidates = detector.detect(center, depth, contour)
-        for cnd in candidates:
+        radius_for_augment = get_radius_for_augment(bbox)
+        candidates = detector.detect(center, depth, contour, radius_for_augment=radius_for_augment)
+        scores = [cnd.total_score for cnd in candidates]
+        sorted_indexes = np.argsort(scores)[::-1]
+        # for cnd in candidates:
+        for i in sorted_indexes[:top_cnd_num]:
+            cnd = candidates[i]
             color = get_color_by_score(cnd.total_score)
             if cnd.is_framein:
                 cnd.draw(cnd_img_1, color, line_thickness=1)
                 if cnd.is_valid:
+                    # print(best_cnd.center_d, [el.insertion_point_d for el in best_cnd.elements])
                     cnd.draw(cnd_img_2, color, line_thickness=1)
+                    cv2.circle(cnd_img_2, cnd.center, 3, (0, 255, 0), -1)
 
     color = (255, 100, 0) if is_flont else (0, 100, 255)
     for target_img in (cnd_img_1, cnd_img_2):

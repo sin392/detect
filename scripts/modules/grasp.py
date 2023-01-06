@@ -178,10 +178,21 @@ class GraspCandidate:
         self.center = center
         self.center_d = depth[center[1], center[0]]
 
-        # centerがマスク内になければinvalid
         self.is_valid = False
+        self.is_framein = False
+        self.shifted_center = None
+        self.elements_score = 0
+        self.center_diff_score = 0
+        self.total_score = 0
+        self.debug_infos = []
+
+        # centerがマスク内になければinvalid
         # -1: 外側、0: 輪郭上、1: 内側
-        if cv2.pointPolygonTest(contour, (int(center[0]), int(center[1])), False) <= 0:
+        self.is_center_inside_mask = cv2.pointPolygonTest(
+            contour, (int(center[0]), int(center[1])), False) <= 0
+        if self.is_center_inside_mask:
+            self.debug_infos.append(
+                ("center_inside_mask", self.is_center_inside_mask))
             return
 
         self.elements = [
@@ -191,12 +202,6 @@ class GraspCandidate:
                 insertion_th=el_insertion_th, contact_th=el_contact_th, bw_depth_th=el_bw_depth_th
             ) for insertion_point in insertion_points
         ]
-
-        self.shifted_center = None
-        self.elements_score = 0
-        self.center_diff_score = 0
-        self.total_score = 0
-        self.debug_infos = []
 
         self.is_framein = self._merge_elements_framein()
         if not self.is_framein:
@@ -351,31 +356,37 @@ class GraspDetector:
         anchors = [center]
         if self.augment_anchors:
             vector_for_augment = unit_vector * radius_for_augment
-            anchors += self._compute_rotated_points(
+            rotated_points = self._compute_rotated_points(
                 center, vector_for_augment, self.angle_for_augment)
+            h, w = depth.shape[:2]
+            # フレームアウトするanchorは除外
+            anchors += [(x, y) for (x, y) in rotated_points
+                        if x >= 0 and y >= 0 and x < w and y < h]
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
         best_score = 0
         for anchor in anchors:
-            for i in range(self.candidate_num):
-                finger_v = base_finger_v
-                insertion_points = self.compute_insertion_points(
-                    anchor, finger_v)
-                angle = self.unit_angle * i
-                cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
-                                     depth=depth, contour=contour, original_center=center, center=anchor, insertion_points=insertion_points,
-                                     elements_th=self.elements_th, center_diff_th=self.center_diff_th,
-                                     el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
-                                     el_bw_depth_th=self.el_bw_depth_th
-                                     )
-                candidates.append(cnd)
-                if cnd.total_score > best_score:
-                    best_score = cnd.total_score
+            try:
+                for i in range(self.candidate_num):
+                    finger_v = base_finger_v
+                    insertion_points = self.compute_insertion_points(
+                        anchor, finger_v)
+                    angle = self.unit_angle * i
+                    cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
+                                         depth=depth, contour=contour, original_center=center, center=anchor, insertion_points=insertion_points,
+                                         elements_th=self.elements_th, center_diff_th=self.center_diff_th,
+                                         el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
+                                         el_bw_depth_th=self.el_bw_depth_th
+                                         )
+                    candidates.append(cnd)
+                    if cnd.total_score > best_score:
+                        best_score = cnd.total_score
 
-                base_finger_v = np.dot(base_finger_v, self.unit_rmat)
-
-            # スコアの良いcandidateがみつかったらanchorの水増しを打ち切り
-            if best_score >= anchor_total_score_th:
-                break
+                    base_finger_v = np.dot(base_finger_v, self.unit_rmat)
+                # スコアの良いcandidateがみつかったらanchorの水増しを打ち切り
+                if best_score >= anchor_total_score_th:
+                    break
+            except Exception:
+                pass
 
         return candidates
 
