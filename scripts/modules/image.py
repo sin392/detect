@@ -24,31 +24,61 @@ def transform_ddi(depth, n):
     return ddi
 
 
-def compute_optimal_depth_thresh(depth, whole_mask, n):
-    # ddiヒストグラムからddiしきい値を算出（物体のエッジに相当）
-    ddi = transform_ddi(depth, n)
-    hist_without_mask = cv2.calcHist([ddi], channels=[0], mask=None, histSize=[
-                                     UINT16MAX], ranges=[0, UINT16MAX - 1])
-    depth_values_on_mask = depth[whole_mask > 0]
-    ddi_values_on_mask = ddi[whole_mask > 0]
-    min_ddi, max_ddi = ddi_values_on_mask.min(), ddi_values_on_mask.max()
-
+def compute_thresh_by_histgram(hist, min_v, max_v, n):
     h_list = []
-    for i in range(min_ddi, max_ddi + 1):
-        t1 = np.sum(hist_without_mask[i - n:i + n + 1])
-        t2 = np.sum(hist_without_mask[i - n * 2:i - n])
-        t3 = np.sum(hist_without_mask[i + n + 1:i + n * 2 + 1])
+    for i in range(min_v, max_v + 1):
+        t1 = np.sum(hist[i - n:i + n + 1])
+        t2 = np.sum(hist[i - n * 2:i - n])
+        t3 = np.sum(hist[i + n + 1:i + n * 2 + 1])
         res = t1 - t2 - t3
         h_list.append(res)
     sorted_h = np.argsort(h_list)  # argsortはデフォルト昇順
-    optimal_ddi_thresh = sorted_h[-1] + min_ddi
-    # ddiしきい値をdepthしきい値に変換
-    optimal_depth_thresh = np.max(
-        depth_values_on_mask[ddi_values_on_mask <= optimal_ddi_thresh])
-    # optimal_depth_thresh = np.max(depth[ddi >= optimal_ddi_thresh])
+    optimal_thresh = sorted_h[-1] + min_v
+    return optimal_thresh
+
+
+def compute_optimal_ddi_thresh(ddi, whole_mask, n):
+    ddi_hist_wo_mask = cv2.calcHist([ddi], channels=[0], mask=whole_mask, histSize=[
+        UINT16MAX], ranges=[0, UINT16MAX - 1])
+    ddi_values_on_mask = ddi[whole_mask > 0]
+    min_ddi, max_ddi = ddi_values_on_mask.min(), ddi_values_on_mask.max()
+    optimal_ddi_thresh = compute_thresh_by_histgram(
+        ddi_hist_wo_mask, min_ddi, max_ddi, n)
+    return optimal_ddi_thresh
+
+
+def compute_optimal_depth_thresh(depth, whole_mask, n):
+    """前景抽出のためのdepthしきい値を算出する"""
+    # depthからddiへの変換（マスクの範囲外は平均値で補完）
+    ddi = transform_ddi(np.where(whole_mask > 0, depth,
+                        depth[depth > 0].mean()), n)
+    # ddiヒストグラムからddiしきい値を算出（物体のエッジに相当）
+    optimal_ddi_thresh = compute_optimal_ddi_thresh(ddi, whole_mask, n)
+    # ddiしきい値が一定以上のdepthを取得（物体境界に該当）
+    edge_mask = np.where(ddi > optimal_ddi_thresh, 255, 0).astype("uint8")
+    edge_depth = np.where(edge_mask > 0, depth, 0)
+    # エッジ部分のdepthヒストグラムから前傾抽出に適したdepthしきい値を算出
+    depth_hist_wo_mask = cv2.calcHist([depth], channels=[0],
+                                      mask=edge_mask, histSize=[UINT16MAX],
+                                      ranges=[0, UINT16MAX - 1])
+    min_depth, max_depth = edge_depth.min(), edge_depth.max()
+    optimal_depth_thresh = compute_thresh_by_histgram(
+        depth_hist_wo_mask, min_depth, max_depth, n)
     rounded_optimal_depth_thresh = np.int0(np.round(optimal_depth_thresh))
 
     return rounded_optimal_depth_thresh
+
+
+def refine_flont_mask(whole_flont_mask, instance_masks, thresh=0.3):
+    res_mask = np.zeros_like(whole_flont_mask)
+    for mask in instance_masks:
+        overlay = np.where(whole_flont_mask > 0, mask, 0)
+        score = len(overlay[overlay > 0]) / len(mask[mask > 0])
+        if score <= thresh:
+            continue
+        res_mask += mask
+    res_mask = np.where(res_mask > 0, 255, 0).astype("uint8")
+    return res_mask
 
 
 def extract_flont_mask_with_thresh(depth, thresh, n):

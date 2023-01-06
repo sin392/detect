@@ -1,5 +1,6 @@
 from typing import Any, Tuple, TypedDict
 
+import cv2
 import numpy as np
 from detectron2.engine import DefaultPredictor
 from detectron2.structures import Boxes
@@ -35,21 +36,25 @@ class PredictResult:
     def __init__(self, outputs_dict: OutputsDictType, device: str = "cpu"):
         self._instances: Instances = outputs_dict['instances'].to(device)
 
-        self.mask_array: np.ndarray = self._instances.pred_masks.numpy().astype("uint8")
         self.scores: np.ndarray = self._instances.scores.numpy()
         self.labels: np.ndarray = self._instances.pred_classes.numpy()
 
-        self.num_instances: int = self.mask_array.shape[0]
+        mask_array: np.ndarray = self._instances.pred_masks.numpy().astype("uint8")
+        self.num_instances: int = mask_array.shape[0]
 
         # rotated_bboxの形式は(center, weight, height, angle)の方がよい？
         # radiusも返すべき？
         # contourはどうやってｍｓｇに渡す？
+        self.masks = []
         self.contours = []
         self.centers = []
         self.bboxes = []
         self.areas = []
-        for each_mask_array in self.mask_array:
+        for each_mask_array in mask_array:
             each_mask = BinaryMask(each_mask_array)
+            closing_mask = cv2.morphologyEx(
+                each_mask.mask, cv2.MORPH_CLOSE, np.ones((10, 10), np.uint8))
+            self.masks.append(closing_mask)
             self.contours.append(each_mask.contour)
             self.centers.append(each_mask.get_center())
             self.bboxes.append(each_mask.get_rotated_bbox())

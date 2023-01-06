@@ -218,3 +218,19 @@ axes[1].imshow(extract_flont_img(depth, merged_mask, 5))
 # %%
 imshow(new_extract_flont_img(img, depth, merged_mask, 5))
 # %%
+""" depth threshのヒストグラムから直接もとめた閾値から前景画像を得る手法の改良版 """
+# インスタンスセグメンテーションの結果への依存度が高い
+optimal_depth_thresh = 989
+merged_mask = np.zeros_like(depth)
+for obj in objects:
+    mask = obj["mask"]
+    masked_depth = depth[mask > 0]
+    valid_num = len(masked_depth[masked_depth <= optimal_depth_thresh])
+    ratio = valid_num / len(masked_depth)
+    print(valid_num, ratio)
+    if ratio > 0.3:
+        merged_mask += mask
+merged_mask = np.where(merged_mask > 0, 255, 0).astype("uint8")
+imshow(merged_mask)
+imshow(cv2.bitwise_and(img, img, mask=merged_mask))
+# %%

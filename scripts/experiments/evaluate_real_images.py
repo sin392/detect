@@ -9,7 +9,8 @@ from entities.predictor import Predictor
 from modules.const import CONFIGS_PATH, OUTPUTS_PATH, SAMPLES_PATH
 from modules.grasp import GraspDetector
 from modules.image import (compute_optimal_depth_thresh,
-                           extract_flont_mask_with_thresh, transform_ddi)
+                           extract_flont_mask_with_thresh, refine_flont_mask,
+                           transform_ddi)
 from utils import RealsenseBagHandler, imshow
 
 # %%
@@ -29,6 +30,9 @@ fig, axes = plt.subplots(1, 2)
 axes[0].imshow(img)
 axes[1].imshow(depth, cmap="binary")
 
+# %% depth欠損の確認
+print(f"min: {depth.min()}, count: {len(depth[depth == depth.min()])}")
+imshow(np.where(depth == depth.min(), 255, 0))
 # %%
 config_path = f"{CONFIGS_PATH}/config.yaml"
 weight_path = f"{OUTPUTS_PATH}/2022_10_16_08_01/model_final.pth"
@@ -47,17 +51,29 @@ seg = res.draw_instances(img[:, :, ::-1])
 imshow(seg)
 
 # %%
-merged_mask = np.where(np.sum(res.mask_array, axis=0) > 0, 255, 0).astype("uint8")
-ddi = transform_ddi(depth, 5)
-opt_depth_th = compute_optimal_depth_thresh(depth, merged_mask, n=3)
+merged_mask = np.where(np.sum(res.masks, axis=0) > 0, 255, 0).astype("uint8")
+# depthの欠損箇所があれば全体マスクから除外
+valid_mask = np.where(merged_mask * depth > 0, 255, 0).astype("uint8")
+ddi = transform_ddi(np.where(valid_mask > 0, depth, depth[depth > 0].mean()), 5)
+opt_depth_th = compute_optimal_depth_thresh(depth, valid_mask, n=3)
 print("opt_depth_th :", opt_depth_th)
-flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=3)
-flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
-imshow(flont_img)
+# この段階でのflont_maskはコンテナ含んだり、インスタンスの見切れなどもそんざいする
+raw_flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=3)
+raw_flont_img = cv2.bitwise_and(img, img, mask=raw_flont_mask)
 fig, axes = plt.subplots(1, 3)
 axes[0].imshow(merged_mask)
 axes[1].imshow(ddi)
+axes[2].imshow(raw_flont_img)
+# %% depth filteringの結果とインスタンスセグメンテーションの結果のマージ (背景除去 & マスク拡大)
+valid_masks = [res.masks[i] for i in range(res.num_instances) if res.scores[i] >= 0.75]
+flont_mask = refine_flont_mask(raw_flont_mask, valid_masks, 0.3)
+flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
+fig, axes = plt.subplots(1, 3)
+axes[0].imshow(img)
+axes[1].imshow(flont_mask)
 axes[2].imshow(flont_img)
+
+
 # %%
 finger_num = 4
 hand_radius_mm = 150
@@ -89,7 +105,7 @@ for i in range(res.num_instances):
     score = res.scores[i]
     center = res.centers[i]
     area = res.areas[i]
-    mask = res.mask_array[i]
+    mask = res.masks[i]
     contour = res.contours[i]
 
     if score < score_th:
@@ -116,5 +132,4 @@ for i in range(res.num_instances):
 imshow(cnd_img_1)
 imshow(cnd_img_2)
 
-:
-:  # %%
+# %%

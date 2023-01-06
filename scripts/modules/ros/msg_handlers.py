@@ -20,7 +20,7 @@ class InstanceHandler:
             bbox=RotatedBoundingBox(*instances.bboxes[index]),
             center=instances.centers[index],
             area=instances.areas[index],
-            mask=cls.bridge.cv2_to_imgmsg(instances.mask_array[index]),
+            mask=cls.bridge.cv2_to_imgmsg(instances.masks[index]),
             contour=numpy2multiarray(
                 Int32MultiArray, instances.contours[index])
         )
