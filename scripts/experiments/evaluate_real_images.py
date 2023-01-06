@@ -46,13 +46,11 @@ cfg.MODEL.DEVICE = device
 predictor = Predictor(cfg)
 # %%
 res = predictor.predict(img)
-areas = [res.areas[i] for i in range(res.num_instances)]
-plt.figure()
-plt.plot(areas)
 seg = res.draw_instances(img[:, :, ::-1])
 imshow(seg)
 
 # %% 複数のインスタンスを包含するようなものはNMSでうまく除去できないので、面積を使ってフィルタリング
+areas = [res.areas[i] for i in range(res.num_instances)]
 outlier_indexes = smirnov_grubbs(areas, 0.05)
 print(outlier_indexes)
 target_indexes = [i for i in range(res.num_instances) if i not in outlier_indexes]
