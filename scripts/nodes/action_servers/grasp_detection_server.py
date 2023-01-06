@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
+from multiprocessing import Pool
 from time import time
 from typing import List
-from multiprocessing import Pool
 
 import cv2
 import numpy as np
@@ -23,6 +23,7 @@ from modules.ros.utils import PointProjector, PoseEstimator, multiarray2numpy
 from sensor_msgs.msg import CameraInfo
 from std_msgs.msg import Header
 
+
 def process_instance_segmentation_result_routine(depth, instance_msg, detect_func):
     instance_center = np.array(instance_msg.center)
     bbox_handler = RotatedBoundingBoxHandler(instance_msg.bbox)
@@ -34,27 +35,29 @@ def process_instance_segmentation_result_routine(depth, instance_msg, detect_fun
 
     return (candidates, instance_center, bbox_handler)
 
+
 def create_candidates_msg(original_center, valid_candidates, target_index):
     return Candidates(candidates=[
-            Candidate(
-                        PointTuple2D(cnd.get_center_uv()),
-                        [PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()],
-                        [PointTuple2D(pt) for pt in cnd.get_contact_points_uv()],
-                        cnd.total_score,
-                        cnd.is_valid
-                    )
-                    for cnd in valid_candidates
-                ],
-                # bbox=bbox_handler.msg,
-                center=PointTuple2D(original_center),
-                target_index=target_index
-            )
+        Candidate(
+            PointTuple2D(cnd.get_center_uv()),
+            [PointTuple2D(pt) for pt in cnd.get_insertion_points_uv()],
+            [PointTuple2D(pt) for pt in cnd.get_contact_points_uv()],
+            cnd.total_score,
+            cnd.is_valid
+        )
+        for cnd in valid_candidates
+    ],
+        # bbox=bbox_handler.msg,
+        center=PointTuple2D(original_center),
+        target_index=target_index
+    )
+
 
 class GraspDetectionServer:
     def __init__(self, name: str, finger_num: int, unit_angle: int, hand_radius_mm: int, finger_radius_mm: int,
                  hand_mount_rotation: int, approach_coef: float,
                  elements_th: float, center_diff_th: float, el_insertion_th: float, el_contact_th: float, el_bw_depth_th: float,
-                 info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool, 
+                 info_topic: str, enable_depth_filter: bool, enable_candidate_filter: bool,
                  augment_anchors: bool, angle_for_augment: int,
                  debug: bool):
         rospy.init_node(name, log_level=rospy.INFO)
@@ -101,7 +104,7 @@ class GraspDetectionServer:
                                             elements_th=elements_th, center_diff_th=center_diff_th,
                                             el_insertion_th=el_insertion_th, el_contact_th=el_contact_th,
                                             el_bw_depth_th=el_bw_depth_th,
-                                            augment_anchors=augment_anchors, 
+                                            augment_anchors=augment_anchors,
                                             angle_for_augment=angle_for_augment)
 
         self.pool = Pool(100)
@@ -115,7 +118,6 @@ class GraspDetectionServer:
             merged_mask_msg = self.bridge.cv2_to_imgmsg(merged_mask)
             opt_depth_th = self.cdt_client.compute(depth_msg, merged_mask_msg, n=n)
             flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=n)
-            # flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
             flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
             vis_base_img_msg = self.bridge.cv2_to_imgmsg(flont_img)
 
@@ -132,12 +134,12 @@ class GraspDetectionServer:
         c_orientation = self.pose_estimator.get_orientation(depth, mask)
 
         return PoseStamped(
-                    Header(frame_id="base_link"),
-                    Pose(
-                        position=c_3d_w.point,
-                        orientation=c_orientation
-                    )
-                )
+            Header(frame_id="base_link"),
+            Pose(
+                position=c_3d_w.point,
+                orientation=c_orientation
+            )
+        )
 
     def compute_approach_distance(self, c_3d_c_on_surface, insertion_points_c):
         bottom_z = max([pt.z for pt in insertion_points_c])
@@ -239,10 +241,10 @@ class GraspDetectionServer:
                     long_radius=long_radius_3d,
                     length_to_center=length_to_center,
                     score=best_cand.total_score,
-                    index=obj_index # for visualize
-                    )
+                    index=obj_index  # for visualize
                 )
-           
+                )
+
             self.visualize_client.visualize_candidates(vis_base_img_msg, candidates_list)
             if self.dbg_info_publisher:
                 self.dbg_info_publisher.publish(GraspDetectionDebugInfo(header, candidates_list))

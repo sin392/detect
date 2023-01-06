@@ -93,7 +93,8 @@ detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm,
                          unit_angle=unit_angle, frame_size=frame_size, fp=fp,
                          elements_th=elements_th, center_diff_th=center_diff_th,
                          el_insertion_th=el_insertion_th, el_contact_th=el_contact_th,
-                         el_bw_depth_th=el_bw_depth_th)
+                         el_bw_depth_th=el_bw_depth_th,
+                         augment_anchors=True)
 # %%
 gray_3c = convert_rgb_to_3dgray(img)
 reversed_flont_mask = cv2.bitwise_not(flont_mask)
@@ -116,9 +117,9 @@ for i in valid_indexes:
         for cnd in candidates:
             color = get_color_by_score(cnd.total_score)
             if cnd.is_framein:
-                cnd.draw(cnd_img_1, color, line_thickness=2)
+                cnd.draw(cnd_img_1, color, line_thickness=1)
                 if cnd.is_valid:
-                    cnd.draw(cnd_img_2, color, line_thickness=2)
+                    cnd.draw(cnd_img_2, color, line_thickness=1)
 
     color = (255, 100, 0) if is_flont else (0, 100, 255)
     for target_img in (cnd_img_1, cnd_img_2):

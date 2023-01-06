@@ -168,7 +168,7 @@ class GraspCandidateElement:
 
 class GraspCandidate:
     def __init__(self, hand_radius_px, finger_radius_px, angle, depth, contour,
-                  original_center, center, insertion_points,
+                 original_center, center, insertion_points,
                  elements_th, center_diff_th, el_insertion_th, el_contact_th, el_bw_depth_th):
         self.hand_radius_px = hand_radius_px
         self.finger_radius_px = finger_radius_px
@@ -180,8 +180,9 @@ class GraspCandidate:
 
         # centerがマスク内になければinvalid
         self.is_valid = False
-        if cv2.pointPolygonTest(contour, (int(center[0]), int(center[1])), False) <= 0: # -1: 外側、0: 輪郭上、1: 内側
-            return 
+        # -1: 外側、0: 輪郭上、1: 内側
+        if cv2.pointPolygonTest(contour, (int(center[0]), int(center[1])), False) <= 0:
+            return
 
         self.elements = [
             GraspCandidateElement(
@@ -288,7 +289,7 @@ class GraspDetector:
     def __init__(self, finger_num: int, hand_radius_mm: Mm, finger_radius_mm: Mm, unit_angle: int,
                  frame_size: Tuple[int, int], fp: float,
                  elements_th: float = 0., center_diff_th: float = 0.,
-                 el_insertion_th:float = 0.5, el_contact_th: float= 0.5, el_bw_depth_th: float = 0.,
+                 el_insertion_th: float = 0.5, el_contact_th: float = 0.5, el_bw_depth_th: float = 0.,
                  augment_anchors: bool = False, angle_for_augment: int = 15):
         self.finger_num = finger_num
         self.unit_angle = unit_angle  # 生成される把持候補の回転の刻み角
@@ -350,20 +351,22 @@ class GraspDetector:
         anchors = [center]
         if self.augment_anchors:
             vector_for_augment = unit_vector * radius_for_augment
-            anchors += self._compute_rotated_points(center, vector_for_augment, self.angle_for_augment)
+            anchors += self._compute_rotated_points(
+                center, vector_for_augment, self.angle_for_augment)
         # 基準となる線分をbase_angleまでunit_angleずつ回転する (左回り)
         best_score = 0
         for anchor in anchors:
             for i in range(self.candidate_num):
                 finger_v = base_finger_v
-                insertion_points = self.compute_insertion_points(anchor, finger_v)
+                insertion_points = self.compute_insertion_points(
+                    anchor, finger_v)
                 angle = self.unit_angle * i
                 cnd = GraspCandidate(hand_radius_px=hand_radius_px, finger_radius_px=finger_radius_px, angle=angle,
-                                    depth=depth, contour=contour, original_center=center, center=anchor, insertion_points=insertion_points,
-                                    elements_th=self.elements_th, center_diff_th=self.center_diff_th,
-                                    el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
-                                    el_bw_depth_th=self.el_bw_depth_th
-                                    )
+                                     depth=depth, contour=contour, original_center=center, center=anchor, insertion_points=insertion_points,
+                                     elements_th=self.elements_th, center_diff_th=self.center_diff_th,
+                                     el_insertion_th=self.el_insertion_th, el_contact_th=self.el_contact_th,
+                                     el_bw_depth_th=self.el_bw_depth_th
+                                     )
                 candidates.append(cnd)
                 if cnd.total_score > best_score:
                     best_score = cnd.total_score
