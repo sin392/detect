@@ -6,11 +6,12 @@ import rospy
 from actionlib import SimpleActionServer
 from cv_bridge import CvBridge
 from detect.msg import (Candidate, Candidates, VisualizeCandidatesAction,
-                        VisualizeCandidatesGoal, VisualizeTargetAction, VisualizeTargetGoal)
+                        VisualizeCandidatesGoal, VisualizeTargetAction,
+                        VisualizeTargetGoal)
 # from modules.ros.msg_handlers import RotatedBoundingBoxHandler
 from modules.ros.publishers import ImageMatPublisher
-from modules.visualize import convert_rgb_to_3dgray  # , draw_bbox
-from modules.visualize import draw_candidate
+from modules.visualize import (convert_rgb_to_3dgray, draw_candidate,
+                               get_color_by_score)
 
 
 class VisualizeServer:
@@ -32,11 +33,6 @@ class VisualizeServer:
         for server in self.servers:
             server.start()
 
-    def get_color(self, score):
-        coef = (1 - score)
-        color = (255, 255 * coef, 255 * coef)
-        return color
-
     def draw_candidates(self, goal: VisualizeCandidatesGoal):
         img_msg = goal.base_image
         img = self.bridge.imgmsg_to_cv2(img_msg)
@@ -51,7 +47,7 @@ class VisualizeServer:
             cnd_target_index = cnds_msg.target_index
             for cnd_index, cnd_msg in enumerate(candidates):
                 cnd_center_uv = cnd_msg.center.uv
-                color = self.get_color(cnd_msg.score)
+                color = get_color_by_score(cnd_msg.score)
                 is_target = cnd_index == cnd_target_index
                 for pt_msg in cnd_msg.insertion_points:
                     res_img = draw_candidate(res_img, cnd_center_uv, pt_msg.uv, color, is_target=is_target)
@@ -67,7 +63,7 @@ class VisualizeServer:
 
     def draw_target(self, goal: VisualizeTargetGoal):
         """ 一度candidatesを描画した後に使用すること """
-        if type(self.last_image) != None:
+        if type(self.last_image) is not None:
             target_obj_index = goal.target_index
             cnds_msg = self.last_candidates_list[target_obj_index]
             target_cnd_index = cnds_msg.target_index
@@ -78,16 +74,17 @@ class VisualizeServer:
             score = cnd_msg.score
 
             outer_color = (0, 255, 0)
-            inner_color = self.get_color(score)
+            inner_color = get_color_by_score(score)
             for color, thickness in ((outer_color, 4), (inner_color, 2)):
                 for pt_msg in cnd_msg.insertion_points:
                     res_img = draw_candidate(res_img, cnd_center_uv, pt_msg.uv, color, is_target=True, target_thickness=thickness)
-            
+
             # cv2.circle(res_img, obj_center_uv, 6, (0, 255, 0), 1, lineType=cv2.LINE_AA)
-            cv2.putText(res_img, f"{score:.2f}", (obj_center_uv[0] + 10, obj_center_uv[1] + 5), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(res_img, f"{score:.2f}", (obj_center_uv[0] + 10, obj_center_uv[1] + 5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
 
         self.publisher.publish(res_img, self.last_frame_id, self.last_stamp)
+
 
 if __name__ == "__main__":
     pub_topic = rospy.get_param("candidates_img_topic")

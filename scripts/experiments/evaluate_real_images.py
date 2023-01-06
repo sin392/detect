@@ -9,17 +9,12 @@ from entities.predictor import Predictor
 from modules.const import CONFIGS_PATH, OUTPUTS_PATH, SAMPLES_PATH
 from modules.grasp import GraspDetector
 from modules.image import (compute_optimal_depth_thresh,
-                           extract_flont_mask_with_thresh, get_3c_gray,
-                           refine_flont_mask, transform_ddi)
+                           extract_flont_mask_with_thresh, refine_flont_mask,
+                           transform_ddi)
+from modules.visualize import convert_rgb_to_3dgray, get_color_by_score
 from utils import RealsenseBagHandler, imshow, smirnov_grubbs
 
 # %%
-# depthはuint8の３チャネルになってる
-# img_path_list = sorted(glob(f"{SAMPLES_PATH}/real_images/color/*"))
-# depth_path_list = sorted(glob(f"{SAMPLES_PATH}/real_images/depth/*"))
-
-# img = cv2.imread(img_path_list[0])
-# depth = cv2.cvtColor(cv2.imread(depth_path_list[0]), cv2.COLOR_BGR2GRAY)
 path = glob(f"{SAMPLES_PATH}/realsense_viewer_bags/*")[0]
 handler = RealsenseBagHandler(path, 640, 480, 30)
 
@@ -53,12 +48,13 @@ imshow(seg)
 areas = [res.areas[i] for i in range(res.num_instances)]
 outlier_indexes = smirnov_grubbs(areas, 0.05)
 print(outlier_indexes)
-target_indexes = [i for i in range(res.num_instances) if i not in outlier_indexes]
+valid_indexes = [i for i in range(res.num_instances) if i not in outlier_indexes]
 
-seg2 = res.draw_instances(img[:, :, ::-1], targets=target_indexes)
+seg2 = res.draw_instances(img[:, :, ::-1], targets=valid_indexes)
 imshow(seg2)
 # %%
-merged_mask = np.where(np.sum(res.masks, axis=0) > 0, 255, 0).astype("uint8")
+filtered_masks = res.masks[valid_indexes]
+merged_mask = np.where(np.sum(filtered_masks, axis=0) > 0, 255, 0).astype("uint8")
 # depthの欠損箇所があれば全体マスクから除外
 valid_mask = np.where(merged_mask * depth > 0, 255, 0).astype("uint8")
 ddi = transform_ddi(np.where(valid_mask > 0, depth, depth[depth > 0].mean()), 5)
@@ -72,8 +68,7 @@ axes[0].imshow(merged_mask)
 axes[1].imshow(ddi)
 axes[2].imshow(raw_flont_img)
 # %% depth filteringの結果とインスタンスセグメンテーションの結果のマージ (背景除去 & マスク拡大)
-valid_masks = [res.masks[i] for i in range(res.num_instances) if res.scores[i] >= 0.75]
-flont_mask = refine_flont_mask(raw_flont_mask, valid_masks, 0.3)
+flont_mask = refine_flont_mask(raw_flont_mask, filtered_masks, 0.3)
 flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
 fig, axes = plt.subplots(1, 3)
 axes[0].imshow(img)
@@ -100,44 +95,35 @@ detector = GraspDetector(finger_num=finger_num, hand_radius_mm=hand_radius_mm,
                          el_insertion_th=el_insertion_th, el_contact_th=el_contact_th,
                          el_bw_depth_th=el_bw_depth_th)
 # %%
-score_th = 0.8
-
-gray_3c = get_3c_gray(img)
+gray_3c = convert_rgb_to_3dgray(img)
 reversed_flont_mask = cv2.bitwise_not(flont_mask)
 base_img = cv2.bitwise_and(img, img, mask=flont_mask) + \
     cv2.bitwise_and(gray_3c, gray_3c, mask=reversed_flont_mask)
 
-print(res.num_instances)
 cnd_img_1 = base_img.copy()
 cnd_img_2 = base_img.copy()
-for i in range(res.num_instances):
+for i in valid_indexes:
     label = str(res.labels[i])
     score = res.scores[i]
     center = res.centers[i]
-    area = res.areas[i]
     mask = res.masks[i]
     contour = res.contours[i]
 
-    if score < score_th:
-        continue
+    is_flont = flont_mask[center[1], center[0]] > 0
 
-    # try:
-    candidates = detector.detect(center, depth, contour)
+    if is_flont:
+        candidates = detector.detect(center, depth, contour)
+        for cnd in candidates:
+            color = get_color_by_score(cnd.total_score)
+            if cnd.is_framein:
+                cnd.draw(cnd_img_1, color, line_thickness=2)
+                if cnd.is_valid:
+                    cnd.draw(cnd_img_2, color, line_thickness=2)
 
-    for cnd in candidates:
-        coef = 1 - cnd.total_score
-        color = (255, 255 * coef, 255 * coef)
-        if cnd.is_framein:
-            cnd.draw(cnd_img_1, color)
-            if cnd.is_valid:
-                cnd.draw(cnd_img_2, color)
-    print("success")
-    cv2.circle(cnd_img_1, center, 3, (0, 0, 255), 1)
-    cv2.drawContours(cnd_img_1, [contour], -1, (0, 100, 255), 1, lineType=cv2.LINE_AA)
-    cv2.circle(cnd_img_2, center, 3, (0, 0, 255), 1)
-    cv2.drawContours(cnd_img_2, [contour], -1, (0, 100, 255), 1, lineType=cv2.LINE_AA)
-    # except Exception as e:
-    #     print(i, e)
+    color = (255, 100, 0) if is_flont else (0, 100, 255)
+    for target_img in (cnd_img_1, cnd_img_2):
+        cv2.drawContours(target_img, [contour], -1, color, 1, lineType=cv2.LINE_AA)
+        cv2.circle(target_img, center, 3, (0, 0, 255), -1)
 
 imshow(cnd_img_1)
 imshow(cnd_img_2)

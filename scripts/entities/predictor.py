@@ -45,20 +45,26 @@ class PredictResult:
         # rotated_bboxの形式は(center, weight, height, angle)の方がよい？
         # radiusも返すべき？
         # contourはどうやってｍｓｇに渡す？
-        self.masks = []
-        self.contours = []
-        self.centers = []
-        self.bboxes = []
-        self.areas = []
+        masks = []
+        contours = []
+        centers = []
+        bboxes = []
+        areas = []
         for each_mask_array in mask_array:
             each_mask = BinaryMask(each_mask_array)
             closing_mask = cv2.morphologyEx(
                 each_mask.mask, cv2.MORPH_CLOSE, np.ones((10, 10), np.uint8))
-            self.masks.append(closing_mask)
-            self.contours.append(each_mask.contour)
-            self.centers.append(each_mask.get_center())
-            self.bboxes.append(each_mask.get_rotated_bbox())
-            self.areas.append(each_mask.get_area())
+            masks.append(closing_mask)
+            contours.append(each_mask.contour)
+            centers.append(each_mask.get_center())
+            bboxes.append(each_mask.get_rotated_bbox())
+            areas.append(each_mask.get_area())
+
+        self.masks = np.array(masks)
+        self.contours = np.array(contours)
+        self.centers = np.array(centers)
+        self.bboxes = np.array(bboxes)
+        self.areas = np.array(areas)
 
     def draw_instances(self, img, metadata={}, scale=0.5, instance_mode=ColorMode.IMAGE_BW, targets: Union[list, np.ndarray, None] = None):
         v = Visualizer(

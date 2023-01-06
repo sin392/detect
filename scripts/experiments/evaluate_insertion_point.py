@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import MultipleLocator
 from modules.const import SAMPLES_PATH
+from modules.visualize import get_color_by_score
 from utils import imshow, load_py2_pickle
 
 # %%
@@ -266,8 +267,7 @@ for i, obj in enumerate(objects):
     best_score = scores[best_index]
     best_candidate = candidates[best_index]
     print(i, instance_min_depth, best_score)
-    coef = ((1 - best_score) ** 2)
-    color = (255, 255 * coef, 255 * coef)
+    color = get_color_by_score(best_score)
 
     for edge in best_candidate:
         cv2.line(candidate_img_6, center, np.int0(edge), color, 2, cv2.LINE_AA)

@@ -12,6 +12,7 @@ from modules.grasp import (compute_bw_depth_profile, compute_contact_point,
                            compute_depth_profile_in_finger_area,
                            compute_intersection_between_contour_and_line,
                            evaluate_single_insertion_point)
+from modules.visualize import get_color_by_score
 from scipy.ndimage import map_coordinates
 from utils import imshow, load_py2_pickle
 
@@ -231,7 +232,6 @@ class GraspCandidateElement:
         # min_mean_depth = min(local_min_depth, mean_intersection_depth)
         # max_mean_depth = max(local_max_depth, mean_intersection_depth)
         # coef = ((local_mean_depth - min_mean_depth) / (max_mean_depth - min_mean_depth + 10e-6)) ** 2
-        # print(coef)
         # score = 1 - (((local_mean_depth - local_min_depth) / (local_max_depth - local_min_depth + 1e-6)) * coef)
         return score
 
@@ -371,8 +371,7 @@ for i, obj in enumerate(objects):
             if gc.total_score > best_score:
                 best_score = gc.total_score
                 best_index = j
-            coef = (1 - gc.total_score)
-            color = (255, 255 * coef, 255 * coef)
+            color = get_color_by_score(gc.total_score)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
     cv2.circle(candidate_img, center, 3, (0, 0, 255), -1, cv2.LINE_AA)
@@ -420,8 +419,7 @@ for i, obj in enumerate(objects):
 for i, gc_list in enumerate(gc_list_list):
     for j, gc in enumerate(gc_list):
         if gc.is_valid:
-            coef = (1 - gc.total_score)
-            color = (255, 255 * coef, 255 * coef)
+            color = get_color_by_score(gc.total_score)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
         cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
@@ -467,8 +465,7 @@ candidate_img = img.copy()
 for i, gc_list in enumerate(gc_list_list):
     for j, gc in enumerate(gc_list):
         if gc.is_valid:
-            coef = (1 - gc.total_score)
-            color = (255, 255 * coef, 255 * coef)
+            color = get_color_by_score(gc.total_score)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
 
         cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
@@ -484,8 +481,7 @@ fig, axes = plt.subplots(row, column)
 for i, gc_list in enumerate(gc_list_list):
     candidate_img = img.copy()
     for gc in gc_list:
-        coef = (1 - gc.total_score)
-        color = (255, 255 * coef, 255 * coef)
+        color = get_color_by_score(gc.total_score)
         gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
         cv2.circle(candidate_img, gc.center, 3, (0, 0, 255), -1, cv2.LINE_AA)
 
@@ -573,8 +569,7 @@ candidate_img = img.copy()
 for i, gc_list in enumerate(gc_list_list):
     for j, gc in enumerate(gc_list):
         if gc.is_valid:
-            coef = (1 - gc.total_score)
-            color = (255, 255 * coef, 255 * coef)
+            color = get_color_by_score(gc.total_score)
             gc.draw(candidate_img, line_color=color, line_thickness=2, show_circle=False)
         else:
             print("---")

@@ -42,3 +42,9 @@ def convert_rgb_to_3dgray(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray_3d = convert_1dgray_to_3dgray(gray)
     return gray_3d
+
+
+def get_color_by_score(score):
+    coef = (1 - score)
+    color = (255, 255 * coef, 255 * coef)
+    return color
