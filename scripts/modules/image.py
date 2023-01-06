@@ -14,10 +14,6 @@ def gen_color_palette(n):
     return rgb_array
 
 
-def get_3c_gray(img):
-    return cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), cv2.COLOR_GRAY2RGB)
-
-
 def transform_ddi(depth, n):
     mask = np.ones((n, n)).astype('uint8')  # erodeで使用するmaskはuint8
     # mask[n//2, n//2] = 0
