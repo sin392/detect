@@ -1,29 +1,13 @@
-import pickle
+# %% 深度画像の欠損値の補完デモ
+from glob import glob
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pyrealsense2 as rs
+from modules.const import SAMPLES_PATH
 
 
-def load_py2_pickle(path):
-    with open(path, mode='rb') as f:
-        # python2でつくったpickleはpython3ではエンコーディングエラーがでる
-        # ref: https://qiita.com/f0o0o/items/4cdad7f3748741a3cf74
-        # 自作msgが入ってくるとエラー出る
-        data = pickle.load(f, encoding='latin1')
-
-    return data
-
-
-def imshow(img, show_axis=False, cmap=None):
-    plt.figure()
-    plt.imshow(img, cmap=cmap)
-    if show_axis is False:
-        plt.axis("off")
-        # Not work: 一部余白が残る
-        # plt.subplots_adjust(left=0, right=1, bottom=0, top=1)
-
-
+# %%
 class RealsenseBagHandler:
     def __init__(self, path: str, w: int, h: int, fps: int, align_to: rs.stream = rs.stream.color):
         self.pipeline = rs.pipeline()
@@ -70,3 +54,25 @@ class RealsenseBagHandler:
         depth = np.asanyarray(depth_frame.get_data())
 
         return rgb, depth
+
+
+# %%
+path = glob(f"{SAMPLES_PATH}/realsense_viewer_bags/*")[0]
+handler = RealsenseBagHandler(path, 640, 480, 30)
+
+img, depth = handler.get_images(use_filter=False)
+missing_depth = np.where(depth == depth.min(), 255, 0)
+print(img.dtype, depth.dtype)
+fig, axes = plt.subplots(1, 3)
+axes[0].imshow(img)
+axes[1].imshow(depth, cmap="binary")
+axes[2].imshow(missing_depth)
+
+# %%
+_, filtered_depth = handler.get_images(use_filter=True)
+missing_filtered_depth = np.where(filtered_depth == filtered_depth.min(), 255, 0)
+fig, axes = plt.subplots(1, 2)
+axes[0].imshow(filtered_depth, cmap="binary")
+axes[1].imshow(missing_filtered_depth)
+
+# %%
