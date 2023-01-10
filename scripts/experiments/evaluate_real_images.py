@@ -9,7 +9,8 @@ from entities.predictor import Predictor
 from modules.const import CONFIGS_PATH, OUTPUTS_PATH, SAMPLES_PATH
 from modules.grasp import GraspDetector
 from modules.image import (compute_optimal_depth_thresh,
-                           extract_flont_mask_with_thresh, refine_flont_mask,
+                           extract_flont_instance_indexes,
+                           extract_flont_mask_with_thresh, merge_mask,
                            transform_ddi)
 from modules.visualize import convert_rgb_to_3dgray, get_color_by_score
 from utils import RealsenseBagHandler, imshow
@@ -43,7 +44,7 @@ imshow(seg)
 
 # %%
 masks = res.masks
-merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0).astype("uint8")
+merged_mask = merge_mask(masks)
 # depthの欠損箇所があれば全体マスクから除外
 valid_mask = np.where(merged_mask * depth > 0, 255, 0).astype("uint8")
 ddi = transform_ddi(np.where(valid_mask > 0, depth, depth[depth > 0].mean()), 5)
@@ -57,7 +58,9 @@ axes[0].imshow(merged_mask)
 axes[1].imshow(ddi)
 axes[2].imshow(raw_flont_img)
 # %% depth filteringの結果とインスタンスセグメンテーションの結果のマージ (背景除去 & マスク拡大)
-flont_mask = refine_flont_mask(raw_flont_mask, masks, 0.8)
+# flont_mask = refine_flont_mask(raw_flont_mask, masks, 0.8)
+flont_indexes = extract_flont_instance_indexes(raw_flont_mask, masks, 0.8)
+flont_mask = merge_mask(masks[flont_indexes])
 flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
 fig, axes = plt.subplots(1, 3)
 axes[0].imshow(img)
@@ -103,6 +106,7 @@ base_img = cv2.bitwise_and(img, img, mask=flont_mask) + \
 top_cnd_num = 1
 cnd_img_1 = base_img.copy()
 cnd_img_2 = base_img.copy()
+flont_indexes_set = set(flont_indexes)
 for i in range(res.num_instances):
     label = str(res.labels[i])
     score = res.scores[i]
@@ -111,7 +115,7 @@ for i in range(res.num_instances):
     contour = res.contours[i]
     bbox = res.bboxes[i]
 
-    is_flont = flont_mask[center[1], center[0]] > 0
+    is_flont = i in flont_indexes
 
     if is_flont:
         radius_for_augment = get_radius_for_augment(bbox)

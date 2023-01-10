@@ -69,7 +69,7 @@ def compute_optimal_depth_thresh(depth, whole_mask, n):
     return rounded_optimal_depth_thresh
 
 
-def refine_flont_mask(whole_flont_mask, instance_masks, thresh=0.3):
+def refine_flont_mask(whole_flont_mask, instance_masks, thresh=0.8):
     res_mask = np.zeros_like(whole_flont_mask)
     for mask in instance_masks:
         overlay = np.where(whole_flont_mask > 0, mask, 0)
@@ -79,6 +79,20 @@ def refine_flont_mask(whole_flont_mask, instance_masks, thresh=0.3):
         res_mask += mask
     res_mask = np.where(res_mask > 0, 255, 0).astype("uint8")
     return res_mask
+
+
+def merge_mask(instance_masks):
+    return np.where(np.sum(instance_masks, axis=0) > 0, 255, 0).astype("uint8")
+
+
+def extract_flont_instance_indexes(whole_flont_mask, instance_masks, thresh=0.8):
+    flont_indexes = []
+    for i, mask in enumerate(instance_masks):
+        overlay = np.where(whole_flont_mask > 0, mask, 0)
+        score = len(overlay[overlay > 0]) / len(mask[mask > 0])
+        if score > thresh:
+            flont_indexes.append(i)
+    return flont_indexes
 
 
 def extract_flont_mask_with_thresh(depth, thresh, n):
