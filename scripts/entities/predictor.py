@@ -7,6 +7,7 @@ from detectron2.structures import Boxes
 from detectron2.structures import Instances as RawInstances
 from detectron2.utils.visualizer import ColorMode, Visualizer
 from torch import Tensor
+from modules.utils import smirnov_grubbs
 
 from entities.image import BinaryMask
 
@@ -60,11 +61,15 @@ class PredictResult:
             bboxes.append(each_mask.get_rotated_bbox())
             areas.append(each_mask.get_area())
 
-        self.masks = np.array(masks)
-        self.contours = np.array(contours)
-        self.centers = np.array(centers)
-        self.bboxes = np.array(bboxes)
-        self.areas = np.array(areas)
+        # NMSで除去できない不良インスタンスの除去
+        outlier_indexes = smirnov_grubbs(areas, 0.05)
+        valid_indexes = [i for i in range(self.num_instances) if i not in outlier_indexes]
+
+        self.masks = np.array(masks)[valid_indexes]
+        self.contours = np.array(contours)[valid_indexes]
+        self.centers = np.array(centers)[valid_indexes]
+        self.bboxes = np.array(bboxes)[valid_indexes]
+        self.areas = np.array(areas)[valid_indexes]
 
     def draw_instances(self, img, metadata={}, scale=0.5, instance_mode=ColorMode.IMAGE_BW, targets: Union[list, np.ndarray, None] = None):
         v = Visualizer(
