@@ -11,8 +11,9 @@ from modules.grasp import GraspDetector
 from modules.image import (compute_optimal_depth_thresh,
                            extract_flont_mask_with_thresh, refine_flont_mask,
                            transform_ddi)
+from modules.utils import smirnov_grubbs
 from modules.visualize import convert_rgb_to_3dgray, get_color_by_score
-from utils import RealsenseBagHandler, imshow, smirnov_grubbs
+from utils import RealsenseBagHandler, imshow
 
 # %%
 path = glob(f"{SAMPLES_PATH}/realsense_viewer_bags/*")[0]
