@@ -6,8 +6,8 @@ from detectron2.engine import DefaultPredictor
 from detectron2.structures import Boxes
 from detectron2.structures import Instances as RawInstances
 from detectron2.utils.visualizer import ColorMode, Visualizer
-from torch import Tensor
 from modules.utils import smirnov_grubbs
+from torch import Tensor
 
 from entities.image import BinaryMask
 
@@ -41,7 +41,6 @@ class PredictResult:
         self.labels: np.ndarray = self._instances.pred_classes.numpy()
 
         mask_array: np.ndarray = self._instances.pred_masks.numpy().astype("uint8")
-        self.num_instances: int = mask_array.shape[0]
 
         # rotated_bboxの形式は(center, weight, height, angle)の方がよい？
         # radiusも返すべき？
@@ -63,8 +62,12 @@ class PredictResult:
 
         # NMSで除去できない不良インスタンスの除去
         outlier_indexes = smirnov_grubbs(areas, 0.05)
-        valid_indexes = [i for i in range(self.num_instances) if i not in outlier_indexes]
+        print(outlier_indexes)
+        valid_indexes = [i for i in range(
+            mask_array.shape[0]) if i not in outlier_indexes]
 
+        self.instances = self._instances[valid_indexes]
+        self.num_instances = len(self.instances)
         self.masks = np.array(masks)[valid_indexes]
         self.contours = np.array(contours)[valid_indexes]
         self.centers = np.array(centers)[valid_indexes]
@@ -80,7 +83,7 @@ class PredictResult:
             # This option is only available for segmentation models
             instance_mode=instance_mode
         )
-        instances = self._instances if targets is None else self._instances[targets]
+        instances = self.instances if targets is None else self.instances[targets]
         return v.draw_instance_predictions(instances).get_image()[:, :, ::-1]
 
 
