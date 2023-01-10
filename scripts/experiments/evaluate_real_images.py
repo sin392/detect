@@ -115,7 +115,7 @@ for i in range(res.num_instances):
     contour = res.contours[i]
     bbox = res.bboxes[i]
 
-    is_flont = i in flont_indexes
+    is_flont = i in flont_indexes_set
 
     if is_flont:
         radius_for_augment = get_radius_for_augment(bbox)
