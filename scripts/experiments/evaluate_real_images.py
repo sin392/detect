@@ -15,20 +15,6 @@ from modules.visualize import convert_rgb_to_3dgray, get_color_by_score
 from utils import RealsenseBagHandler, imshow
 
 # %%
-path = glob(f"{SAMPLES_PATH}/realsense_viewer_bags/*")[0]
-handler = RealsenseBagHandler(path, 640, 480, 30)
-
-
-img, depth = handler.get_images()
-print(img.dtype, depth.dtype)
-fig, axes = plt.subplots(1, 2)
-axes[0].imshow(img)
-axes[1].imshow(depth, cmap="binary")
-
-# %% depth欠損の確認
-print(f"min: {depth.min()}, count: {len(depth[depth == depth.min()])}")
-imshow(np.where(depth == depth.min(), 255, 0))
-# %%
 config_path = f"{CONFIGS_PATH}/config.yaml"
 weight_path = f"{OUTPUTS_PATH}/2022_10_16_08_01/model_final.pth"
 device = "cuda:0"
@@ -39,6 +25,17 @@ cfg.MODEL.WEIGHTS = weight_path
 cfg.MODEL.DEVICE = device
 
 predictor = Predictor(cfg)
+# %%
+path = glob(f"{SAMPLES_PATH}/realsense_viewer_bags/*")[0]
+handler = RealsenseBagHandler(path, 640, 480, 30)
+
+img, depth = handler.get_images()
+print(img.dtype, depth.dtype)
+fig, axes = plt.subplots(1, 2)
+axes[0].imshow(img)
+axes[1].imshow(depth, cmap="binary")
+
+depth.shape
 # %%
 res = predictor.predict(img)
 seg = res.draw_instances(img[:, :, ::-1])

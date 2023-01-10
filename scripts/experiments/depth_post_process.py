@@ -27,12 +27,12 @@ class RealsenseBagHandler:
         intrinsics = video_stream_profile.get_intrinsics()
         self.fp = (intrinsics.fx + intrinsics.fy) / 2
 
-        decimate = rs.decimation_filter(magnitude=2)
+        # decimate = rs.decimation_filter(magnitude=2)
         spatial = rs.spatial_filter(smooth_alpha=0.5, smooth_delta=20, magnitude=2, hole_fill=0)
         temporal = rs.temporal_filter(smooth_alpha=0.4, smooth_delta=20, persistence_control=3)
         hole_filling = rs.hole_filling_filter(mode=2)
         self.filters = [
-            decimate,
+            # decimate,
             spatial,
             temporal,
             hole_filling
