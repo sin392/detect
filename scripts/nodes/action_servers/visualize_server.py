@@ -40,7 +40,8 @@ class VisualizeServer:
         frame_id = img_msg.header.frame_id
         stamp = img_msg.header.stamp
 
-        res_img = convert_rgb_to_3dgray(img)
+        # res_img = convert_rgb_to_3dgray(img)
+        res_img = img
         for cnds_msg in candidates_list:
             candidates: List[Candidate] = cnds_msg.candidates
             obj_center_uv = cnds_msg.center.uv
@@ -63,6 +64,7 @@ class VisualizeServer:
 
     def draw_target(self, goal: VisualizeTargetGoal):
         """ 一度candidatesを描画した後に使用すること """
+        print(f"candidates_list: {len(self.last_candidates_list)}, target: {goal.target_index}")
         if type(self.last_image) is not None:
             target_obj_index = goal.target_index
             cnds_msg = self.last_candidates_list[target_obj_index]

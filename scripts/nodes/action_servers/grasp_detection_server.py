@@ -12,9 +12,9 @@ from detect.msg import (Candidate, Candidates, DetectedObject,
                         GraspDetectionAction, GraspDetectionDebugInfo,
                         GraspDetectionGoal, GraspDetectionResult, PointTuple2D)
 from geometry_msgs.msg import Point, Pose, PoseStamped
-from modules.const import UINT16MAX
 from modules.grasp import GraspDetector
-from modules.image import extract_flont_mask_with_thresh
+from modules.image import extract_flont_mask_with_thresh, extract_flont_instance_indexes, merge_mask
+from modules.visualize import convert_rgb_to_3dgray
 from modules.ros.action_clients import (ComputeDepthThresholdClient,
                                         InstanceSegmentationClient, TFClient,
                                         VisualizeClient)
@@ -113,20 +113,26 @@ class GraspDetectionServer:
         self.server.start()
 
     def depth_filtering(self, img_msg, depth_msg, img, depth, masks, n=5):
+        vis_base_img_msg = img_msg
+        flont_indexes = []
+
         if self.cdt_client:
             merged_mask = np.where(np.sum(masks, axis=0) > 0, 255, 0).astype("uint8")
-            merged_mask_msg = self.bridge.cv2_to_imgmsg(merged_mask)
-            opt_depth_th = self.cdt_client.compute(depth_msg, merged_mask_msg, n=n)
-            flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=n)
-            flont_img = cv2.bitwise_and(img, img, mask=flont_mask)
-            vis_base_img_msg = self.bridge.cv2_to_imgmsg(flont_img)
-
+            # depthの欠損対策だがすでに不要
+            # merged_mask = np.where(merged_mask * depth > 0, 255, 0).astype("uint8")
+            whole_mask_msg = self.bridge.cv2_to_imgmsg(merged_mask)
+            opt_depth_th = self.cdt_client.compute(depth_msg, whole_mask_msg, n=n)
+            raw_flont_mask = extract_flont_mask_with_thresh(depth, opt_depth_th, n=n)
+            flont_indexes = extract_flont_instance_indexes(raw_flont_mask, masks, 0.5)
+            flont_mask = merge_mask(np.array(masks)[flont_indexes])
+            gray_3c = convert_rgb_to_3dgray(img)
+            reversed_flont_mask = cv2.bitwise_not(flont_mask)
+            base_img = cv2.bitwise_and(img, img, mask=flont_mask) + \
+                cv2.bitwise_and(gray_3c, gray_3c, mask=reversed_flont_mask)
+            vis_base_img_msg = self.bridge.cv2_to_imgmsg(base_img)
             rospy.loginfo(opt_depth_th)
-        else:
-            opt_depth_th = UINT16MAX
-            vis_base_img_msg = img_msg
 
-        return opt_depth_th, vis_base_img_msg
+        return vis_base_img_msg, flont_indexes
 
     def compute_object_center_pose_stampd(self, depth, mask, c_3d_c_on_surface, header):
         c_3d_c = Point(c_3d_c_on_surface.x, c_3d_c_on_surface.y, c_3d_c_on_surface.z)
@@ -180,18 +186,20 @@ class GraspDetectionServer:
             # TODO: depthしきい値を求めるためにmerged_maskが必要だが非効率なので要改善
             masks = [self.bridge.imgmsg_to_cv2(instance_msg.mask) for instance_msg in instances]
             # TODO: compute n by camera distance
-            opt_depth_th, vis_base_img_msg = self.depth_filtering(img_msg, depth_msg, img, depth, masks, n=5)
+            vis_base_img_msg, flont_indexes = self.depth_filtering(img_msg, depth_msg, img, depth, masks, n=5)
+            flont_indexes_set = set(flont_indexes)
 
             objects: List[DetectedObject] = []  # 空のものは省く
             candidates_list: List[Candidates] = []  # 空のものも含む
 
             # 把持候補の生成 (並列処理)
             routine_args = []
-            for instance_msg, mask in zip(instances, masks):
+            for i in range(len(instances)):
                 # ignore other than instances are located on top of stacks
                 # TODO: しきい値で切り出したマスク内に含まれないインスタンスはスキップ
-                instance_min_d = depth[mask > 0].min()
-                if instance_min_d > opt_depth_th:
+                instance_msg = instances[i]
+                mask = masks[i]
+                if i not in flont_indexes_set:
                     continue
                 routine_args.append((depth, instance_msg, self.grasp_detector.detect))
             results = self.pool.starmap(process_instance_segmentation_result_routine, routine_args)
