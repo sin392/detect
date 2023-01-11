@@ -227,16 +227,13 @@ class GraspDetectionServer:
                 center_pose_stamped_msg = self.compute_object_center_pose_stampd(depth, mask, c_3d_c_on_surface, header)
                 # compute 3d radiuses
                 short_radius_3d, long_radius_3d = self.compute_object_3d_radiuses(depth, bbox_handler)
-                # angleの変換と水増し
-                # NOTE: unclockwise seen from image plane is positive in cnd.angle, so convert as rotate on z-axis
-                # NOTE: 指位置が同じになる角度は複数存在するので候補に追加している
-                angle = -best_cand.angle + self.hand_mount_rotation
-                # 先頭要素(最小絶対値の角度)のみでいいかもしれない
-                angles = self.augment_angles(angle)
+                angle = best_cand.angle - self.hand_mount_rotation
+                # 絶対値が最も小さい角度
+                nearest_angle = self.augment_angles(angle)[0]
                 objects.append(DetectedObject(
                     points=insertion_points_msg,
                     center_pose=center_pose_stamped_msg,
-                    angles=angles,
+                    angle=nearest_angle,
                     short_radius=short_radius_3d,
                     long_radius=long_radius_3d,
                     length_to_center=length_to_center,
