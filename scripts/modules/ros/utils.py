@@ -88,6 +88,14 @@ class PointProjector:
 
         return distance
 
+    def get_flat_length_between_2d_points(self, pt1_2d: Tuple[int, int], pt2_2d: Tuple[int, int], depth: np.ndarray):
+        """スクリーン座標系の二点をカメラ座標系に投影し、二点間の長さ[mm]を算出"""
+        pt1_3d_c = self.screen_to_camera(pt1_2d, depth[pt1_2d[1], pt1_2d[0]])
+        pt2_3d_c = self.screen_to_camera(pt2_2d, depth[pt2_2d[1], pt1_2d[0]])
+        distance = self.get_length_between_3d_points(pt1_3d_c, pt2_3d_c)
+
+        return distance
+
     def get_length_between_3d_points(self, pt1_3d: Point, pt2_3d: Point):
         """カメラ座標系の二点間の長さ[mm]を算出"""
         pt1_arr = np.array([pt1_3d.x, pt1_3d.y, pt1_3d.z])

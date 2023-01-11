@@ -49,10 +49,15 @@ class RotatedBoundingBoxHandler:
 
     def get_sides_3d(self, projector: PointProjector, depth: np.ndarray) -> Tuple[float, float]:
         """ bboxの短辺と長辺の3次元空間上での長さ[mm]を算出する"""
-
-        short_side_3d = projector.get_length_between_2d_points(
+        # z方向は同じとして考えてmm単位の長さ出すべきだった
+        # あるいはpx->mm変換行う？
+        # short_side_3d = projector.get_length_between_2d_points(
+        #     self.ul, self.ur, depth)
+        # long_side_3d = projector.get_length_between_2d_points(
+        #     self.ul, self.ll, depth)
+        short_side_3d = projector.get_flat_length_between_2d_points(
             self.ul, self.ur, depth)
-        long_side_3d = projector.get_length_between_2d_points(
+        long_side_3d = projector.get_flat_length_between_2d_points(
             self.ul, self.ll, depth)
 
         return short_side_3d, long_side_3d
